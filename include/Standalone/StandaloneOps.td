@@ -40,4 +40,23 @@ def Standalone_FooOp : Standalone_Op<"foo", [NoSideEffect,
     }];
 }
 
+def NegToZeroOp : Standalone_Op<"neg_to_zero", 
+        [NoSideEffect, SameOperandsAndResultType]> {
+    let summary = "Identity for positive values, negative values produce zero.";
+    let description = [{
+        The `standalone.neg_to_zero` operation is a demo of how an operation with actual
+        semantics can be lowered.
+
+        For an input with positive value, the output will be assigned the same value. On
+        the other hand, for negative inputs the output will be zero.
+    }];
+
+    let arguments = (ins I32:$input);
+    let results = (outs I32:$res);
+
+    let assemblyFormat = [{
+        $input attr-dict `:` type($input)
+    }];
+}
+
 #endif // STANDALONE_OPS
