@@ -40,6 +40,8 @@ set(LIBS
         CIRCTSV
         CIRCTSVTransforms
         CIRCTTransforms
+
+        StandaloneStandaloneToScf
         )
 add_llvm_executable(standalone-opt standalone-opt.cpp)
 

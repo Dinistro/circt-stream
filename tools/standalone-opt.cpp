@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Standalone/Passes.h"
 #include "Standalone/StandaloneDialect.h"
 #include "circt/InitAllDialects.h"
 #include "circt/InitAllPasses.h"
@@ -34,6 +35,8 @@ int main(int argc, char** argv) {
   circt::registerAllPasses();
 
   registry.insert<mlir::standalone::StandaloneDialect>();
+
+  mlir::standalone::registerConversionPasses();
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "Standalone optimizer driver\n", registry));
