@@ -9,7 +9,6 @@ module {
     // CHECK-NEXT: %{{.*}} = arith.constant 0 : i32
     // CHECK-NEXT: %{{.*}} = arith.cmpi sgt, %{{.*}}, %{{.*}} : i32
     // CHECK-NEXT: %{{.*}} = scf.if %0 -> (i32) {
-    // CHECK-NEXT:   %{{.*}} = arith.subi %{{.*}}, %{{.*}} : i32
     // CHECK-NEXT:   scf.yield %{{.*}} : i32
     // CHECK-NEXT: } else {
     // CHECK-NEXT:   scf.yield %{{.*}} : i32

@@ -34,15 +34,14 @@ struct NegToZeroLowering : public OpRewritePattern<NegToZeroOp> {
     Location loc = negToZeroOp.getLoc();
     Type i32 = rewriter.getType<IntegerType>(32);
 
-    auto const0 = rewriter.create<arith::ConstantIntOp>(loc, 0, i32);
+    Value const0 = rewriter.create<arith::ConstantIntOp>(loc, 0, i32);
     auto cond = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt,
                                                const0, negToZeroOp.input());
     rewriter.replaceOpWithNewOp<scf::IfOp>(
         negToZeroOp, i32, cond,
         /*thenBuilder=*/
         [&](OpBuilder &b, Location loc) {
-          Value pos = b.create<arith::SubIOp>(loc, const0, negToZeroOp.input());
-          b.create<scf::YieldOp>(loc, pos);
+          b.create<scf::YieldOp>(loc, const0);
         },
         /*elseBuilder=*/
         [&](OpBuilder &b, Location loc) {
