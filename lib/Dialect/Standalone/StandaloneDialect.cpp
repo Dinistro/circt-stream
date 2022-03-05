@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/StandaloneDialect.h"
-#include "Standalone/StandaloneOps.h"
+#include "Standalone/Dialect/Standalone/StandaloneDialect.h"
+
+#include "Standalone/Dialect/Standalone/StandaloneOps.h"
 
 using namespace mlir;
 using namespace mlir::standalone;

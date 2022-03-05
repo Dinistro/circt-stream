@@ -9,14 +9,14 @@
 #ifndef STANDALONE_CONVERSION_PASSES_H
 #define STANDALONE_CONVERSION_PASSES_H
 
-#include "Standalone/StandaloneToScf/StandaloneToScf.h"
+#include "Standalone/Conversion/StandaloneToScf.h"
 #include "mlir/Pass/PassRegistry.h"
 
 namespace mlir {
 namespace standalone {
 /// Generate the code for registering conversion passes.
 #define GEN_PASS_REGISTRATION
-#include "Standalone/Passes.h.inc"
+#include "Standalone/Conversion/Passes.h.inc"
 
 }  // namespace standalone
 }  // namespace mlir

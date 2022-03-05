@@ -10,7 +10,7 @@
 #define STANDALONE_STANDALONEDIALECT_H
 
 #include "mlir/IR/Dialect.h"
+// Do not remove, otherwise includes will be reorder and this breaks everything
+#include "Standalone/Dialect/Standalone/StandaloneOpsDialect.h.inc"
 
-#include "Standalone/StandaloneOpsDialect.h.inc"
-
-#endif // STANDALONE_STANDALONEDIALECT_H
+#endif  // STANDALONE_STANDALONEDIALECT_H

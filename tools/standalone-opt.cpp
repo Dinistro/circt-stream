@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/Passes.h"
-#include "Standalone/StandaloneDialect.h"
+#include "Standalone/Conversion/Passes.h"
+#include "Standalone/Dialect/Standalone/StandaloneDialect.h"
 #include "circt/InitAllDialects.h"
 #include "circt/InitAllPasses.h"
 #include "llvm/Support/CommandLine.h"

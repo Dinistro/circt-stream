@@ -56,7 +56,6 @@ tool_dirs = [config.standalone_tools_dir, config.llvm_tools_dir]
 tools = [
     'standalone-capi-test',
     'standalone-opt',
-    'standalone-translate',
     ToolSubst('%PYTHON', config.python_executable, unresolved='ignore'),
 ]
 

@@ -8,7 +8,7 @@
 
 #include "Standalone-c/Dialects.h"
 
-#include "Standalone/StandaloneDialect.h"
+#include "Standalone/Dialect/Standalone/StandaloneDialect.h"
 #include "mlir/CAPI/Registration.h"
 
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Standalone, standalone,

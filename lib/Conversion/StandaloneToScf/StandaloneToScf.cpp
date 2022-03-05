@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/StandaloneToScf/StandaloneToScf.h"
+#include "Standalone/Conversion/StandaloneToScf.h"
 
 #include "../PassDetail.h"
-#include "Standalone/StandaloneDialect.h"
-#include "Standalone/StandaloneOps.h"
+#include "Standalone/Dialect/Standalone/StandaloneDialect.h"
+#include "Standalone/Dialect/Standalone/StandaloneOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"

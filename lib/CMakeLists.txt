@@ -1,3 +1,3 @@
 add_subdirectory(CAPI)
-add_subdirectory(Standalone)
-add_subdirectory(StandaloneToScf)
+add_subdirectory(Conversion)
+add_subdirectory(Dialect)
