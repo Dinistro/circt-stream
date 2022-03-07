@@ -12,4 +12,4 @@
 #include "mlir/IR/OpImplementation.h"
 
 #define GET_OP_CLASSES
-#include "Standalone/StandaloneOps.cpp.inc"
+#include "Standalone/Dialect/Standalone/StandaloneOps.cpp.inc"

@@ -21,6 +21,7 @@ set(LIBS
         CIRCTFSM
         CIRCTHandshake
         CIRCTHandshakeToFIRRTL
+        CIRCTHandshakeToHW
         CIRCTHandshakeTransforms
         CIRCTLLHD
         CIRCTLLHDToLLVM
