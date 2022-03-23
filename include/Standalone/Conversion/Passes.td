@@ -19,11 +19,15 @@ include "mlir/Pass/PassBase.td"
 // StandaloneToScf
 //===----------------------------------------------------------------------===//
 
-def StandaloneToScf : Pass<"convert-standalone-to-scf", "mlir::FuncOp"> {
+def StandaloneToScf : Pass<"convert-standalone-to-scf", "mlir::func::FuncOp"> {
   let summary = "Convert the Standalone dialect to Scf";
   let constructor = "standalone::createStandaloneToScfPass()";
-  let dependentDialects = ["standalone::StandaloneDialect", "scf::SCFDialect", 
-        "arith::ArithmeticDialect"];
+  let dependentDialects = [
+    "standalone::StandaloneDialect",
+    "scf::SCFDialect",
+    "arith::ArithmeticDialect",
+    "mlir::func::FuncDialect"
+  ];
 }
 
 #endif // STANDALONE_CONVERSION_PASSES_TD

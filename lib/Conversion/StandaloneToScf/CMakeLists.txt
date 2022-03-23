@@ -9,7 +9,6 @@ add_mlir_library(StandaloneStandaloneToScf
   MLIRPass
   MLIRArithmetic
   MLIRControlFlow
-  MLIRStandard
   MLIRSupport
   MLIRTransforms
   )

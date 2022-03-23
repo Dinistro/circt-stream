@@ -22,13 +22,18 @@ namespace arith {
 class ArithmeticDialect;
 }
 
+namespace func {
+class FuncDialect;
+class FuncOp;
+}  // namespace func
+
 namespace standalone {
 
 class StandaloneDialect;
 
 // Generate the classes which represent the passes
 #define GEN_PASS_CLASSES
-#include "Standalone/Passes.h.inc"
+#include "Standalone/Conversion/Passes.h.inc"
 
 }  // namespace standalone
 }  // namespace mlir

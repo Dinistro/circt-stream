@@ -13,7 +13,7 @@
 using namespace mlir;
 using namespace mlir::standalone;
 
-#include "Standalone/StandaloneOpsDialect.cpp.inc"
+#include "Standalone/Dialect/Standalone/StandaloneOpsDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // Standalone dialect.
@@ -22,6 +22,6 @@ using namespace mlir::standalone;
 void StandaloneDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "Standalone/StandaloneOps.cpp.inc"
+#include "Standalone/Dialect/Standalone/StandaloneOps.cpp.inc"
       >();
 }

@@ -16,8 +16,8 @@
 #include "Standalone/Dialect/Standalone/StandaloneDialect.h"
 #include "Standalone/Dialect/Standalone/StandaloneOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 
