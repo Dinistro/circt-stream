@@ -31,6 +31,7 @@ set(LIBS
         CIRCTMSFT
         CIRCTHW
         CIRCTHWToLLHD
+        CIRCTHWTransforms
         CIRCTSCFToCalyx
         CIRCTScheduling
         CIRCTSchedulingTestPasses

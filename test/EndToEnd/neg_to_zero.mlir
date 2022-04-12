@@ -8,12 +8,5 @@ module {
 
   // TODO: how to test this? Use verilator, or should we simulate the handshake dialect?    
 
-
-  // CHECK-LABEL: module main(	
-  // CHECK-NEXT:    input         in0_valid,
-  // CHECK-NEXT:    input  [31:0] in0_data,
-  // CHECK-NEXT:    input         inCtrl_valid, out0_ready, outCtrl_ready, clock, reset,
-  // CHECK-NEXT:    output        in0_ready, inCtrl_ready, out0_valid,
-  // CHECK-NEXT:    output [31:0] out0_data,
-  // CHECK-NEXT:    output        outCtrl_valid);
+  // CHECK: hw.module @main(%in0_valid: i1, %in0_data: i32, %inCtrl_valid: i1, %out0_ready: i1, %outCtrl_ready: i1, %clock: i1, %reset: i1) -> (in0_ready: i1, inCtrl_ready: i1, out0_valid: i1, out0_data: i32, outCtrl_valid: i1) {
 }
