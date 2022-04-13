@@ -11,22 +11,24 @@
 
 include "Standalone/Dialect/Stream/StreamDialect.td"
 include "Standalone/Dialect/Stream/StreamTypes.td"
-include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-def Stream_FooOp : Stream_Op<"foo", [NoSideEffect,
-                                             SameOperandsAndResultType]> {
-    let summary = "TODO";
+def Stream_Min : Stream_Op<"min", [NoSideEffect,
+        TypesMatchWith<"result type matches element type of 'stream'",
+                     "input", "res",
+                     "$_self.cast<StreamType>().getElementType()">]> {
+    let summary = "Extracts the minimum of a finite stream.";
     let description = [{
         TODO
     }];
 
-    let arguments = (ins I32:$input);
-    let results = (outs I32:$res);
+    let arguments = (ins StreamType:$input);
+    let results = (outs AnyType:$res);
 
     let assemblyFormat = [{
-        $input attr-dict `:` type($input)
+        `(` $input `)` attr-dict `:` functional-type($input, $res)
     }];
+
 }
 
 #endif // STREAM_OPS

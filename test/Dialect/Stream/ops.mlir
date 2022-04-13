@@ -1,9 +1,10 @@
 // RUN: standalone-opt %s | standalone-opt | FileCheck %s
 
 module {
-    func @type(%in: !stream.stream<i32>) {
+    func @min_op(%in: !stream.stream<i32>) {
+        %min = stream.min(%in) : (!stream.stream<i32>) -> i32
         return
     }
 
-    // CHECK: func @type(%{{.*}}: !stream.stream<i32>) {
+    // CHECK: func @min_op(%{{.*}}: !stream.stream<i32>) {
 }
