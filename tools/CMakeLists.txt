@@ -6,6 +6,7 @@ set(LIBS
         ${conversion_libs}
         MLIROptLib
         MLIRStandalone
+        MLIRStream
 
         # TODO drop unnessary dependencies
         CIRCTAffineToStaticLogic

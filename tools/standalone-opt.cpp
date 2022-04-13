@@ -8,6 +8,7 @@
 
 #include "Standalone/Conversion/Passes.h"
 #include "Standalone/Dialect/Standalone/StandaloneDialect.h"
+#include "Standalone/Dialect/Stream/StreamDialect.h"
 #include "circt/InitAllDialects.h"
 #include "circt/InitAllPasses.h"
 #include "llvm/Support/CommandLine.h"
@@ -35,6 +36,7 @@ int main(int argc, char** argv) {
   circt::registerAllPasses();
 
   registry.insert<mlir::standalone::StandaloneDialect>();
+  registry.insert<mlir::stream::StreamDialect>();
 
   mlir::standalone::registerConversionPasses();
 
