@@ -30,5 +30,20 @@ def StandaloneToScf : Pass<"convert-standalone-to-scf", "mlir::func::FuncOp"> {
   ];
 }
 
+//===----------------------------------------------------------------------===//
+// StreamToHandshake
+//===----------------------------------------------------------------------===//
+
+def StreamToHandshake : Pass<"convert-stream-to-handshake", "mlir::func::FuncOp"> {
+  let summary = "Convert the Stream dialect to Handshake";
+  let constructor = "stream::createStreamToHandshakePass()";
+  let dependentDialects = [
+    "stream::StreamDialect",
+    "circt::handshake::HandshakeDialect",
+    "arith::ArithmeticDialect",
+    "mlir::func::FuncDialect"
+  ];
+}
+
 #endif // STANDALONE_CONVERSION_PASSES_TD
 

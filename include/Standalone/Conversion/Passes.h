@@ -10,6 +10,7 @@
 #define STANDALONE_CONVERSION_PASSES_H
 
 #include "Standalone/Conversion/StandaloneToScf.h"
+#include "Standalone/Conversion/StreamToHandshake.h"
 #include "mlir/Pass/PassRegistry.h"
 
 namespace mlir {

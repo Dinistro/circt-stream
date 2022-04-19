@@ -26,16 +26,30 @@ namespace func {
 class FuncDialect;
 class FuncOp;
 }  // namespace func
+}  // namespace mlir
+
+namespace circt {
+namespace handshake {
+class HandshakeDialect;
+}
+}  // namespace circt
+
+namespace mlir {
 
 namespace standalone {
-
 class StandaloneDialect;
+}
 
+namespace stream {
+class StreamDialect;
+}
+
+namespace standalone {
 // Generate the classes which represent the passes
 #define GEN_PASS_CLASSES
 #include "Standalone/Conversion/Passes.h.inc"
-
 }  // namespace standalone
+
 }  // namespace mlir
 
 #endif  // CONVERSION_PASSDETAIL_H
