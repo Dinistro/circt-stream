@@ -18,4 +18,14 @@ module {
     // CHECK-NEXT:    %{{.*}} = stream.min_continuous(%{{.*}}) : (!stream.stream<i32>) -> !stream.stream<i32>
     // CHECK-NEXT:    return %{{.*}} : !stream.stream<i32>
 
+    func @map(%in: !stream.stream<i32>) -> !stream.stream<i32> {
+        %res = stream.map(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
+        ^0(%val : i32):
+            %0 = arith.constant 1 : i32
+            %r = arith.addi %0, %val : i32
+            stream.yield %r : i32
+        }
+        return %res : !stream.stream<i32>
+    }
+
 }
