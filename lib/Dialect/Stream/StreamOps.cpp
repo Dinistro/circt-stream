@@ -11,6 +11,7 @@
 #include "Standalone/Dialect/Stream/StreamDialect.h"
 #include "Standalone/Dialect/Stream/StreamTypes.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Support/LogicalResult.h"
 
 #define GET_OP_CLASSES
 #include "Standalone/Dialect/Stream/StreamOps.cpp.inc"

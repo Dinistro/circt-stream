@@ -9,6 +9,7 @@
 #ifndef STANDALONE_STREAMOPS_H
 #define STANDALONE_STREAMOPS_H
 
+#include "Standalone/Dialect/Stream/StreamTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"

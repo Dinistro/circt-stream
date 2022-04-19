@@ -11,9 +11,10 @@
 
 include "Standalone/Dialect/Stream/StreamDialect.td"
 include "Standalone/Dialect/Stream/StreamTypes.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-def Stream_Min : Stream_Op<"min", [NoSideEffect,
+def StreamMin : Stream_Op<"min", [NoSideEffect,
         TypesMatchWith<"result type matches element type of 'stream'",
                      "input", "res",
                      "$_self.cast<StreamType>().getElementType()">]> {
@@ -28,7 +29,21 @@ def Stream_Min : Stream_Op<"min", [NoSideEffect,
     let assemblyFormat = [{
         `(` $input `)` attr-dict `:` functional-type($input, $res)
     }];
+}
 
+def StreamMinContinuous : Stream_Op<"min_continuous", [NoSideEffect, SameOperandsAndResultType]> {
+    let summary = "Extracts the minimum of a finite stream.";
+    let description = [{
+        The MinContinuous operation keeps track of the minimal value encountered
+        so far by emit it continuously.
+    }];
+
+    let arguments = (ins StreamType:$input);
+    let results = (outs StreamType:$res);
+
+    let assemblyFormat = [{
+        `(` $input `)` attr-dict `:` functional-type($input, $res)
+    }];
 }
 
 #endif // STREAM_OPS
