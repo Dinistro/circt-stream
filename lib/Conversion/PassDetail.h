@@ -17,6 +17,9 @@ namespace mlir {
 namespace scf {
 class SCFDialect;
 }
+namespace cf {
+class ControlFlowDialect;
+}
 
 namespace arith {
 class ArithmeticDialect;

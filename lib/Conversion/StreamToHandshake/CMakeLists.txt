@@ -9,6 +9,8 @@ add_mlir_library(StandaloneStreamToHandshake
   MLIRPass
   MLIRSupport
   MLIRTransforms
+  MLIRControlFlow
+  MLIRFunc
 
   CIRCTHandshake
   )
