@@ -40,7 +40,8 @@ def StreamToHandshake : Pass<"convert-stream-to-handshake", "mlir::ModuleOp"> {
   let dependentDialects = [
     "stream::StreamDialect",
     "mlir::cf::ControlFlowDialect",
-    "mlir::func::FuncDialect"
+    "mlir::func::FuncDialect",
+    "circt::handshake::HandshakeDialect"
   ];
 }
 
