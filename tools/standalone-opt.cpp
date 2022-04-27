@@ -29,11 +29,55 @@ int main(int argc, char** argv) {
   mlir::DialectRegistry registry;
 
   // TODO only register required dialects
-  mlir::registerAllDialects(registry);
-  mlir::registerAllPasses();
+  registry.insert<mlir::AffineDialect>();
+  registry.insert<mlir::LLVM::LLVMDialect>();
+  registry.insert<mlir::memref::MemRefDialect>();
+  registry.insert<mlir::func::FuncDialect>();
+  registry.insert<mlir::arith::ArithmeticDialect>();
+  registry.insert<mlir::cf::ControlFlowDialect>();
+  registry.insert<mlir::scf::SCFDialect>();
 
-  circt::registerAllDialects(registry);
-  circt::registerAllPasses();
+  mlir::registerCSEPass();
+  mlir::registerSCCPPass();
+  mlir::registerInlinerPass();
+  mlir::registerCanonicalizerPass();
+  mlir::registerSCFToControlFlowPass();
+
+  // clang-format off
+  registry.insert<
+    circt::chirrtl::CHIRRTLDialect,
+    circt::comb::CombDialect,
+    circt::firrtl::FIRRTLDialect,
+    circt::handshake::HandshakeDialect,
+    circt::llhd::LLHDDialect,
+    circt::hw::HWDialect,
+    circt::seq::SeqDialect,
+    circt::staticlogic::StaticLogicDialect,
+    circt::sv::SVDialect
+  >();
+  // clang-format on
+
+  circt::registerAffineToStaticLogicPass();
+  circt::registerConvertHWToLLHDPass();
+  circt::registerConvertLLHDToLLVMPass();
+  circt::registerCreatePipelinePass();
+  circt::registerExportSplitVerilogPass();
+  circt::registerExportVerilogPass();
+  circt::registerHandshakeRemoveBlockPass();
+  circt::registerHandshakeToFIRRTLPass();
+  circt::registerHandshakeToHWPass();
+  circt::registerLowerFIRRTLToHWPass();
+  circt::registerStandardToHandshakePass();
+
+  circt::registerFlattenMemRefPass();
+  circt::registerFlattenMemRefCallsPass();
+
+  circt::firrtl::registerPasses();
+  circt::llhd::initLLHDTransformationPasses();
+  circt::seq::registerSeqPasses();
+  circt::sv::registerPasses();
+  circt::handshake::registerPasses();
+  circt::hw::registerPasses();
 
   registry.insert<mlir::standalone::StandaloneDialect>();
   registry.insert<mlir::stream::StreamDialect>();

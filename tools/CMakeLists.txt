@@ -1,25 +1,24 @@
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
-get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
-
 set(LIBS
-        ${dialect_libs}
-        ${conversion_libs}
+        MLIRIR
+        MLIRLLVMIR
+        MLIRMemRef
         MLIROptLib
+        MLIRParser
+        MLIRFunc
+        MLIRSupport
+        MLIRTransforms
+        MLIRSCF
+        MLIRSCFToControlFlow
+
         MLIRStandalone
         MLIRStream
 
-        # TODO drop unnessary dependencies
         CIRCTAffineToStaticLogic
         CIRCTAnalysisTestPasses
-        CIRCTCalyx
-        CIRCTCalyxToHW
-        CIRCTCalyxTransforms
-        CIRCTESI
         CIRCTExportVerilog
         CIRCTFIRRTL
         CIRCTFIRRTLToHW
         CIRCTFIRRTLTransforms
-        CIRCTFSM
         CIRCTHandshake
         CIRCTHandshakeToFIRRTL
         CIRCTHandshakeToHW
@@ -27,13 +26,9 @@ set(LIBS
         CIRCTLLHD
         CIRCTLLHDToLLVM
         CIRCTLLHDTransforms
-        CIRCTMoore
-        CIRCTMooreToCore
-        CIRCTMSFT
         CIRCTHW
         CIRCTHWToLLHD
         CIRCTHWTransforms
-        CIRCTSCFToCalyx
         CIRCTScheduling
         CIRCTSchedulingTestPasses
         CIRCTSeq
