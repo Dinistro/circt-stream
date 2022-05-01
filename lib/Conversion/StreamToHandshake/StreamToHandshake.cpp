@@ -45,29 +45,7 @@ class StreamLowering : public HandshakeLowering {
  public:
   explicit StreamLowering(Region &r) : HandshakeLowering(r) {}
 
-  virtual LogicalResult setControlOnlyPath(
-      ConversionPatternRewriter &rewriter) override {
-    if (failed(HandshakeLowering::setControlOnlyPath(rewriter)))
-      return failure();
-
-    Block *entryBlock = &r.front();
-    Value ctrl = getBlockEntryControl(entryBlock);
-
-    // Replace original return ops with new returns with additional control
-    // input
-    for (auto yieldOp : llvm::make_early_inc_range(r.getOps<StreamYieldOp>())) {
-      rewriter.setInsertionPoint(yieldOp);
-      SmallVector<Value, 8> operands(yieldOp->getOperands());
-      operands.push_back(ctrl);
-      rewriter.replaceOpWithNewOp<handshake::ReturnOp>(yieldOp, operands);
-    }
-
-    return success();
-  }
-
-  virtual LogicalResult test(ConversionPatternRewriter &rewriter) {
-    return success();
-  }
+  LogicalResult test(ConversionPatternRewriter &rewriter) { return success(); }
 };
 
 struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
@@ -123,59 +101,109 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
   }
 };
 
+// Assumes that the op producing the input date also produces a ctrl signal
+// This assumption is invalid
+template <typename Adaptor>
+static Value getCtrlSignal(Adaptor adaptor) {
+  assert(adaptor.getOperands().size() > 0);
+  Value fstOp = adaptor.getOperands().front();
+  Value ctrl;
+  if (BlockArgument arg = fstOp.dyn_cast_or_null<BlockArgument>()) {
+    Block *block = arg.getOwner();
+    ctrl = block->getArguments().back();
+  } else {
+    // TODO only check for instances?
+    Operation *defOp = fstOp.getDefiningOp();
+    assert(dyn_cast<handshake::InstanceOp>(defOp) &&
+           "can only deduce ctrl signal from InstanceOps");
+    ctrl = defOp->getResults().back();
+  }
+
+  assert(ctrl.getType().isa<NoneType>());
+
+  return ctrl;
+}
+
 struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
   using OpConversionPattern<func::ReturnOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
       func::ReturnOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    // TODO find a cleaner way to do that
-    SmallVector<Value, 4> operands;
-    for (Value v : adaptor.getOperands()) operands.push_back(v);
+    SmallVector<Value, 4> operands = llvm::to_vector<4>(adaptor.getOperands());
 
-    Value ctrl = *(rewriter.getBlock()->args_rbegin());
-    assert(ctrl.getType().isa<NoneType>());
+    Value ctrl = getCtrlSignal(adaptor);
     operands.push_back(ctrl);
     rewriter.replaceOpWithNewOp<handshake::ReturnOp>(op, operands);
     return success();
   }
 };
 
+/// Returns a name resulting from an operation, without discriminating
+/// type information.
+static std::string getBareOpName(Operation *op) {
+  std::string name = op->getName().getStringRef().str();
+  std::replace(name.begin(), name.end(), '.', '_');
+  return name;
+}
+
+static std::string getFuncName(Operation *op) {
+  std::string opName = getBareOpName(op);
+  // TODO add unique id or something
+  return opName;
+}
+
+Block *getTopLevelBock(Operation *op) {
+  return &op->getParentOfType<ModuleOp>().getRegion().front();
+}
+
+// Builds a handshake::FuncOp and that represents the mapping funtion. This
+// function is then instantiated and connected to its inputs and outputs.
 struct StreamMapLowering : public OpConversionPattern<StreamMap> {
   using OpConversionPattern<StreamMap>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      StreamMap op, OpAdaptor adapter,
+      StreamMap op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Block *condBlock = rewriter.getInsertionBlock();
-    auto opPosition = rewriter.getInsertionPoint();
-    Block *remainingOpsBlock = rewriter.splitBlock(condBlock, opPosition);
+    TypeConverter *typeConverter = getTypeConverter();
 
-    ValueRange operands = op->getOperands();
-    auto &region = op.getRegion();
-    rewriter.setInsertionPointToEnd(condBlock);
-    rewriter.create<cf::BranchOp>(loc, &region.front(), operands);
+    StreamLowering sl(op.getRegion());
 
-    for (Block &block : region) {
-      if (auto terminator =
-              dyn_cast<stream::StreamYieldOp>(block.getTerminator())) {
-        ValueRange terminatorOperands = terminator->getOperands();
-        rewriter.setInsertionPointToEnd(&block);
-        rewriter.create<cf::BranchOp>(loc, remainingOpsBlock,
-                                      terminatorOperands);
-        rewriter.eraseOp(terminator);
-      }
-    }
+    if (failed(lowerRegion<StreamYieldOp>(sl, false, false))) return failure();
 
-    rewriter.inlineRegionBefore(region, remainingOpsBlock);
+    SmallVector<mlir::Type, 8> argTypes = {
+        typeConverter->convertType(op.input().getType())};
 
-    SmallVector<Value> vals;
-    SmallVector<Location> argLocs(op->getNumResults(), op->getLoc());
-    for (auto arg :
-         remainingOpsBlock->addArguments(op->getResultTypes(), argLocs))
-      vals.push_back(arg);
-    rewriter.replaceOp(op, vals);
+    SmallVector<mlir::Type, 8> resTypes = {
+        typeConverter->convertType(op.res().getType())};
+
+    auto noneType = rewriter.getNoneType();
+    argTypes.push_back(noneType);
+    resTypes.push_back(noneType);
+
+    auto func_type = rewriter.getFunctionType(argTypes, resTypes);
+    rewriter.setInsertionPointToStart(getTopLevelBock(op));
+    FuncOp newFuncOp = rewriter.create<FuncOp>(rewriter.getUnknownLoc(),
+                                               getFuncName(op), func_type);
+    // Makes function private
+    SymbolTable::setSymbolVisibility(newFuncOp,
+                                     SymbolTable::Visibility::Private);
+    rewriter.inlineRegionBefore(op.getRegion(), newFuncOp.getBody(),
+                                newFuncOp.end());
+    newFuncOp.resolveArgAndResNames();
+
+    SmallVector<Value, 2> operands;
+    for (auto operand : adaptor.getOperands()) operands.push_back(operand);
+
+    operands.push_back(getCtrlSignal(adaptor));
+
+    rewriter.setInsertionPoint(op);
+    InstanceOp instance = rewriter.create<InstanceOp>(loc, newFuncOp, operands);
+
+    // The ctrl signal has to be ignored
+    rewriter.replaceOp(op, instance.getResults().drop_back());
+
     return success();
   }
 };
@@ -184,9 +212,10 @@ static void populateStreamToHandshakePatterns(
     StreamTypeConverter &typeConverter, RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
-    StreamMapLowering,
     FuncOpLowering,
-    ReturnOpLowering
+    ReturnOpLowering,
+    StreamMapLowering//,
+    //StreamFilterLowering
   >(typeConverter, patterns.getContext());
   // clang-format on
 }
@@ -195,8 +224,8 @@ class StreamToHandshakePass
     : public StreamToHandshakeBase<StreamToHandshakePass> {
  public:
   void runOnOperation() override {
-    RewritePatternSet patterns(&getContext());
     StreamTypeConverter typeConverter;
+    RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
 
     // Patterns to lower stream dialect operations
@@ -205,9 +234,12 @@ class StreamToHandshakePass
     target.addLegalDialect<handshake::HandshakeDialect>();
     target.addIllegalDialect<func::FuncDialect>();
     target.addIllegalDialect<StreamDialect>();
+    // NOTE: we add this here to ensure that the hacky lowerRegion changes
+    // will be accepted.
+    target.addLegalOp<StreamYieldOp>();
 
-    if (failed(
-            applyFullConversion(getOperation(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };
