@@ -208,16 +208,99 @@ struct StreamMapLowering : public OpConversionPattern<StreamMap> {
   }
 };
 
+struct StreamFilterLowering : public OpConversionPattern<StreamFilter> {
+  using OpConversionPattern<StreamFilter>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      StreamFilter op, OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+
+    StreamLowering sl(op.getRegion());
+
+    if (failed(lowerRegion<StreamYieldOp>(sl, false, false))) return failure();
+
+    SmallVector<mlir::Type, 8> argTypes = {
+        typeConverter->convertType(op.input().getType())};
+
+    SmallVector<mlir::Type, 8> resTypes = {
+        typeConverter->convertType(op.input().getType())};
+
+    auto noneType = rewriter.getNoneType();
+    argTypes.push_back(noneType);
+    resTypes.push_back(noneType);
+
+    auto func_type = rewriter.getFunctionType(argTypes, resTypes);
+    rewriter.setInsertionPointToStart(getTopLevelBock(op));
+    FuncOp newFuncOp = rewriter.create<FuncOp>(rewriter.getUnknownLoc(),
+                                               getFuncName(op), func_type);
+    // Makes function private
+    SymbolTable::setSymbolVisibility(newFuncOp,
+                                     SymbolTable::Visibility::Private);
+    rewriter.inlineRegionBefore(op.getRegion(), newFuncOp.getBody(),
+                                newFuncOp.end());
+    newFuncOp.resolveArgAndResNames();
+
+    // add filtering mechanism
+    assert(newFuncOp.getRegion().hasOneBlock() &&
+           "expected std to handshake to produce region with one block");
+
+    Block *entryBlock = &newFuncOp.getRegion().front();
+    Operation *oldTerm = entryBlock->getTerminator();
+
+    assert(oldTerm->getNumOperands() == 2 &&
+           "expected handshake::ReturnOp to have two operands");
+    rewriter.setInsertionPointToEnd(entryBlock);
+    Value input = entryBlock->getArgument(0);
+    Value cond = oldTerm->getOperand(0);
+    Value ctrl = oldTerm->getOperand(1);
+
+    auto condBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), cond, input);
+
+    SmallVector<Value, 2> newOperands = {condBr.trueResult(), ctrl};
+    rewriter.replaceOpWithNewOp<handshake::ReturnOp>(oldTerm, newOperands);
+
+    SmallVector<Value, 2> operands;
+    for (auto operand : adaptor.getOperands()) operands.push_back(operand);
+
+    operands.push_back(getCtrlSignal(adaptor));
+
+    rewriter.setInsertionPoint(op);
+    InstanceOp instance = rewriter.create<InstanceOp>(loc, newFuncOp, operands);
+
+    // The ctrl signal has to be ignored
+    rewriter.replaceOp(op, instance.getResults().drop_back());
+
+    return success();
+  }
+};
+
 static void populateStreamToHandshakePatterns(
     StreamTypeConverter &typeConverter, RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
     FuncOpLowering,
     ReturnOpLowering,
-    StreamMapLowering//,
-    //StreamFilterLowering
+    StreamMapLowering,
+    StreamFilterLowering
   >(typeConverter, patterns.getContext());
   // clang-format on
+}
+
+// ensures that the IR is in a valid state after the initial partial conversion
+static LogicalResult materializeForksAndSinks(ModuleOp m) {
+  for (auto funcOp :
+       llvm::make_early_inc_range(m.getOps<handshake::FuncOp>())) {
+    OpBuilder builder(funcOp);
+    if (addForkOps(funcOp.getRegion(), builder).failed() ||
+        addSinkOps(funcOp.getRegion(), builder).failed() ||
+        verifyAllValuesHasOneUse(funcOp).failed())
+      return failure();
+  }
+
+  return success();
 }
 
 class StreamToHandshakePass
@@ -241,6 +324,8 @@ class StreamToHandshakePass
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       signalPassFailure();
+
+    if (failed(materializeForksAndSinks(getOperation()))) signalPassFailure();
   }
 };
 }  // namespace

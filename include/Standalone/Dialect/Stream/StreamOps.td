@@ -48,6 +48,7 @@ def StreamMinContinuous : Stream_Op<"min_continuous", [NoSideEffect, SameOperand
 }
 
 // TODO: carefull with dependencies between elements
+// TODO: add stronger verification constraints
 def StreamMap : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::StreamYieldOp">]> {
     let summary = "Executes the region on each element";
     let description = [{
@@ -63,8 +64,24 @@ def StreamMap : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::StreamY
     }];
 }
 
+// TODO: add stronger verification constraints
+def StreamFilter : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::StreamYieldOp">]> {
+    let summary = "Executes the region to check if an element should be preserved in the out stream";
+    let description = [{
+        TODO
+    }];
+
+    let arguments = (ins StreamType:$input);
+    let results = (outs StreamType:$res);
+    let regions = (region AnyRegion:$region);
+
+    let assemblyFormat = [{
+        `(` $input `)` attr-dict `:` functional-type($input, $res) $region
+    }];
+}
+
 def StreamYieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               ParentOneOf<["StreamMap"]>]> {
+                               ParentOneOf<["StreamMap, StreamFilter"]>]> {
   let summary = "stream yield and termination operation";
   let description = [{
     "stream.yield" yields an SSA value from the steam dialect op region and

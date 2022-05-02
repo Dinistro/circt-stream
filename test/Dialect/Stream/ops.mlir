@@ -14,7 +14,7 @@ module {
         return %res : !stream.stream<i32>
     }
 
-    //CHECK: func @min_cont(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
+    // CHECK: func @min_cont(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
     // CHECK-NEXT:    %{{.*}} = stream.min_continuous(%{{.*}}) : (!stream.stream<i32>) -> !stream.stream<i32>
     // CHECK-NEXT:    return %{{.*}} : !stream.stream<i32>
 
@@ -27,5 +27,33 @@ module {
         }
         return %res : !stream.stream<i32>
     }
+
+    // CHECK: func @map(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
+    // CHECK-NEXT:    %{{.*}} = stream.map(%{{.*}}) : (!stream.stream<i32>) -> !stream.stream<i32> {
+    // CHECK-NEXT:    ^{{.*}}(%{{.*}}: i32):
+    // CHECK-NEXT:        %{{.*}} = arith.constant 1 : i32
+    // CHECK-NEXT:        %{{.*}} = arith.addi %{{.*}}, %{{.*}} : i32
+    // CHECK-NEXT:        stream.yield %{{.*}} : i32
+    // CHECK-NEXT:    }
+    // CHECK-NEXT:    return %{{.*}} : !stream.stream<i32>
+    // CHECK-NEXT: }
+
+    func @filter(%in: !stream.stream<i32>) -> !stream.stream<i32> {
+      %res = stream.filter(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
+      ^0(%val : i32):
+        %cond = arith.constant false
+        stream.yield %cond : i1
+      }
+      return %res : !stream.stream<i32>
+    }
+
+    // CHECK: func @filter(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
+    // CHECK-NEXT:     %{{.*}} = stream.filter(%{{.*}}) : (!stream.stream<i32>) -> !stream.stream<i32> {
+    // CHECK-NEXT:     ^{{.*}}(%{{.*}}: i32):
+    // CHECK-NEXT:         %{{.*}} = arith.constant false
+    // CHECK-NEXT:         stream.yield %{{.*}} : i1
+    // CHECK-NEXT:     }
+    // CHECK-NEXT:     return %{{.*}} : !stream.stream<i32>
+    // CHECK-NEXT: }
 
 }
