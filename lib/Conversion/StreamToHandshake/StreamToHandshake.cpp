@@ -101,18 +101,15 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
   }
 };
 
-// Assumes that the op producing the input date also produces a ctrl signal
-// This assumption is invalid
-template <typename Adaptor>
-static Value getCtrlSignal(Adaptor adaptor) {
-  assert(adaptor.getOperands().size() > 0);
-  Value fstOp = adaptor.getOperands().front();
+// Assumes that the op producing the input data also produces a ctrl signal
+static Value getCtrlSignal(ValueRange operands) {
+  assert(operands.size() > 0);
+  Value fstOp = operands.front();
   Value ctrl;
   if (BlockArgument arg = fstOp.dyn_cast_or_null<BlockArgument>()) {
     Block *block = arg.getOwner();
     ctrl = block->getArguments().back();
   } else {
-    // TODO only check for instances?
     Operation *defOp = fstOp.getDefiningOp();
     assert(dyn_cast<handshake::InstanceOp>(defOp) &&
            "can only deduce ctrl signal from InstanceOps");
@@ -132,7 +129,7 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
       ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value, 4> operands = llvm::to_vector<4>(adaptor.getOperands());
 
-    Value ctrl = getCtrlSignal(adaptor);
+    Value ctrl = getCtrlSignal(adaptor.getOperands());
     operands.push_back(ctrl);
     rewriter.replaceOpWithNewOp<handshake::ReturnOp>(op, operands);
     return success();
@@ -149,12 +146,53 @@ static std::string getBareOpName(Operation *op) {
 
 static std::string getFuncName(Operation *op) {
   std::string opName = getBareOpName(op);
-  // TODO add unique id or something
+  // TODO add unique
   return opName;
 }
 
-Block *getTopLevelBock(Operation *op) {
+static Block *getTopLevelBock(Operation *op) {
   return &op->getParentOfType<ModuleOp>().getRegion().front();
+}
+
+/// Creates a new FuncOp that encapsulates the provided region.
+static FuncOp createFuncOp(Region &region, StringRef name,
+                           SmallVectorImpl<mlir::Type> &argTypes,
+                           SmallVectorImpl<mlir::Type> &resTypes,
+                           ConversionPatternRewriter &rewriter) {
+  auto noneType = rewriter.getNoneType();
+  argTypes.push_back(noneType);
+  resTypes.push_back(noneType);
+
+  auto func_type = rewriter.getFunctionType(argTypes, resTypes);
+  FuncOp newFuncOp =
+      rewriter.create<FuncOp>(rewriter.getUnknownLoc(), name, func_type);
+
+  // Makes the function private
+  SymbolTable::setSymbolVisibility(newFuncOp, SymbolTable::Visibility::Private);
+
+  rewriter.inlineRegionBefore(region, newFuncOp.getBody(), newFuncOp.end());
+  newFuncOp.resolveArgAndResNames();
+  assert(newFuncOp.getRegion().hasOneBlock() &&
+         "expected std to handshake to produce region with one block");
+
+  return newFuncOp;
+}
+
+/// Replaces op with a new InstanceOp that calls the provided function.
+static void replaceWithInstance(Operation *op, FuncOp func,
+                                ValueRange newOperands,
+                                ConversionPatternRewriter &rewriter) {
+  SmallVector<Value, 2> operands;
+  for (auto operand : newOperands) operands.push_back(operand);
+
+  operands.push_back(getCtrlSignal(newOperands));
+
+  rewriter.setInsertionPoint(op);
+  InstanceOp instance =
+      rewriter.create<InstanceOp>(op->getLoc(), func, operands);
+
+  // The ctrl signal has to be ignored
+  rewriter.replaceOp(op, instance.getResults().drop_back());
 }
 
 // Builds a handshake::FuncOp and that represents the mapping funtion. This
@@ -165,7 +203,6 @@ struct StreamMapLowering : public OpConversionPattern<StreamMap> {
   LogicalResult matchAndRewrite(
       StreamMap op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
     TypeConverter *typeConverter = getTypeConverter();
 
     StreamLowering sl(op.getRegion());
@@ -178,31 +215,11 @@ struct StreamMapLowering : public OpConversionPattern<StreamMap> {
     SmallVector<mlir::Type, 8> resTypes = {
         typeConverter->convertType(op.res().getType())};
 
-    auto noneType = rewriter.getNoneType();
-    argTypes.push_back(noneType);
-    resTypes.push_back(noneType);
-
-    auto func_type = rewriter.getFunctionType(argTypes, resTypes);
     rewriter.setInsertionPointToStart(getTopLevelBock(op));
-    FuncOp newFuncOp = rewriter.create<FuncOp>(rewriter.getUnknownLoc(),
-                                               getFuncName(op), func_type);
-    // Makes function private
-    SymbolTable::setSymbolVisibility(newFuncOp,
-                                     SymbolTable::Visibility::Private);
-    rewriter.inlineRegionBefore(op.getRegion(), newFuncOp.getBody(),
-                                newFuncOp.end());
-    newFuncOp.resolveArgAndResNames();
+    FuncOp newFuncOp = createFuncOp(op.getRegion(), getFuncName(op), argTypes,
+                                    resTypes, rewriter);
 
-    SmallVector<Value, 2> operands;
-    for (auto operand : adaptor.getOperands()) operands.push_back(operand);
-
-    operands.push_back(getCtrlSignal(adaptor));
-
-    rewriter.setInsertionPoint(op);
-    InstanceOp instance = rewriter.create<InstanceOp>(loc, newFuncOp, operands);
-
-    // The ctrl signal has to be ignored
-    rewriter.replaceOp(op, instance.getResults().drop_back());
+    replaceWithInstance(op, newFuncOp, adaptor.getOperands(), rewriter);
 
     return success();
   }
@@ -214,7 +231,6 @@ struct StreamFilterLowering : public OpConversionPattern<StreamFilter> {
   LogicalResult matchAndRewrite(
       StreamFilter op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
     TypeConverter *typeConverter = getTypeConverter();
 
     StreamLowering sl(op.getRegion());
@@ -227,25 +243,11 @@ struct StreamFilterLowering : public OpConversionPattern<StreamFilter> {
     SmallVector<mlir::Type, 8> resTypes = {
         typeConverter->convertType(op.input().getType())};
 
-    auto noneType = rewriter.getNoneType();
-    argTypes.push_back(noneType);
-    resTypes.push_back(noneType);
-
-    auto func_type = rewriter.getFunctionType(argTypes, resTypes);
     rewriter.setInsertionPointToStart(getTopLevelBock(op));
-    FuncOp newFuncOp = rewriter.create<FuncOp>(rewriter.getUnknownLoc(),
-                                               getFuncName(op), func_type);
-    // Makes function private
-    SymbolTable::setSymbolVisibility(newFuncOp,
-                                     SymbolTable::Visibility::Private);
-    rewriter.inlineRegionBefore(op.getRegion(), newFuncOp.getBody(),
-                                newFuncOp.end());
-    newFuncOp.resolveArgAndResNames();
+    FuncOp newFuncOp = createFuncOp(op.getRegion(), getFuncName(op), argTypes,
+                                    resTypes, rewriter);
 
     // add filtering mechanism
-    assert(newFuncOp.getRegion().hasOneBlock() &&
-           "expected std to handshake to produce region with one block");
-
     Block *entryBlock = &newFuncOp.getRegion().front();
     Operation *oldTerm = entryBlock->getTerminator();
 
@@ -262,16 +264,11 @@ struct StreamFilterLowering : public OpConversionPattern<StreamFilter> {
     SmallVector<Value, 2> newOperands = {condBr.trueResult(), ctrl};
     rewriter.replaceOpWithNewOp<handshake::ReturnOp>(oldTerm, newOperands);
 
-    SmallVector<Value, 2> operands;
-    for (auto operand : adaptor.getOperands()) operands.push_back(operand);
+    replaceWithInstance(op, newFuncOp, adaptor.getOperands(), rewriter);
 
-    operands.push_back(getCtrlSignal(adaptor));
 
-    rewriter.setInsertionPoint(op);
-    InstanceOp instance = rewriter.create<InstanceOp>(loc, newFuncOp, operands);
 
-    // The ctrl signal has to be ignored
-    rewriter.replaceOp(op, instance.getResults().drop_back());
+
 
     return success();
   }
