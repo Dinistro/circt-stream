@@ -10,6 +10,7 @@
 
 #include "Standalone/Dialect/Stream/StreamDialect.h"
 #include "Standalone/Dialect/Stream/StreamTypes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Support/LogicalResult.h"
 

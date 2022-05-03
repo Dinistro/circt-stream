@@ -56,4 +56,21 @@ module {
     // CHECK-NEXT:     return %{{.*}} : !stream.stream<i32>
     // CHECK-NEXT: }
 
+  func @reduce(%in: !stream.stream<i64>) -> !stream.stream<i64> {
+    %res = stream.reduce(%in) {initValue = 0 : i64}: (!stream.stream<i64>) -> !stream.stream<i64> {
+    ^0(%acc: i64, %val: i64):
+      %r = arith.addi %acc, %val : i64
+      stream.yield %r : i64
+    }
+    return %res : !stream.stream<i64>
+  }
+
+  // CHECK: func @reduce(%{{.*}}: !stream.stream<i64>) -> !stream.stream<i64> {
+  // CHECK-NEXT:  %{{.*}} = stream.reduce(%a{{.*}}) {initValue = 0 : i64} : (!stream.stream<i64>) -> !stream.stream<i64> {
+  // CHECK-NEXT:  ^bb0(%{{.*}}: i64, %{{.*}}: i64):
+  // CHECK-NEXT:    %{{.*}} = arith.addi %{{.*}}, %{{.*}} : i64
+  // CHECK-NEXT:    stream.yield %{{.*}} : i64
+  // CHECK-NEXT:  }
+  // CHECK-NEXT:  return %{{.*}} : !stream.stream<i64>
+  // CHECK-NEXT:}
 }

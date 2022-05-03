@@ -266,10 +266,51 @@ struct StreamFilterLowering : public OpConversionPattern<StreamFilter> {
 
     replaceWithInstance(op, newFuncOp, adaptor.getOperands(), rewriter);
 
+    return success();
+  }
+};
 
+struct StreamReduceLowering : public OpConversionPattern<StreamReduce> {
+  using OpConversionPattern<StreamReduce>::OpConversionPattern;
 
+  LogicalResult matchAndRewrite(
+      StreamReduce op, OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    TypeConverter *typeConverter = getTypeConverter();
 
+    Type resultType = typeConverter->convertType(op.res().getType());
 
+    StreamLowering sl(op.getRegion());
+
+    if (failed(lowerRegion<StreamYieldOp>(sl, false, false))) return failure();
+
+    // TODO: handshake currently only supports i64 buffers, change this as soon
+    // as support for other types is added.
+    SmallVector<mlir::Type, 8> argTypes = {
+        typeConverter->convertType(op.input().getType()),
+        rewriter.getI64Type()};
+
+    SmallVector<mlir::Type, 8> resTypes = {
+        typeConverter->convertType(op.input().getType())};
+
+    rewriter.setInsertionPointToStart(getTopLevelBock(op));
+    FuncOp newFuncOp = createFuncOp(op.getRegion(), getFuncName(op), argTypes,
+                                    resTypes, rewriter);
+
+    Block *entryBlock = &newFuncOp.getRegion().front();
+    Operation *term = entryBlock->getTerminator();
+    rewriter.setInsertionPointToStart(entryBlock);
+    auto buffer = rewriter.create<handshake::BufferOp>(
+        rewriter.getUnknownLoc(), resultType, 1, term->getOperand(0),
+        BufferTypeEnum::seq);
+    // This does return an unsigned integer but expects signed integers
+    // TODO check if this is an MLIR bug
+    buffer->setAttr("initValues",
+                    rewriter.getI64ArrayAttr({(int64_t)adaptor.initValue()}));
+    rewriter.replaceUsesOfBlockArgument(entryBlock->getArgument(1),
+                                        buffer.result());
+
+    replaceWithInstance(op, newFuncOp, adaptor.getOperands(), rewriter);
     return success();
   }
 };
@@ -281,7 +322,8 @@ static void populateStreamToHandshakePatterns(
     FuncOpLowering,
     ReturnOpLowering,
     StreamMapLowering,
-    StreamFilterLowering
+    StreamFilterLowering,
+    StreamReduceLowering
   >(typeConverter, patterns.getContext());
   // clang-format on
 }

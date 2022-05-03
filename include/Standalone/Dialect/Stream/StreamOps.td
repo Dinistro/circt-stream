@@ -80,8 +80,27 @@ def StreamFilter : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::S
     }];
 }
 
+// TODO: add stronger verification constraints
+def StreamReduce : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::StreamYieldOp">]> {
+    let summary = "applies the region on each stream element to reduce the stream to a single value";
+    let description = [{
+        TODO
+    }];
+
+    let arguments = (
+      ins StreamType:$input,
+      I64Attr:$initValue);
+
+    let results = (outs StreamType:$res);
+    let regions = (region AnyRegion:$region);
+
+    let assemblyFormat = [{
+        `(` $input `)` attr-dict `:` functional-type(operands, $res) $region
+    }];
+}
+
 def StreamYieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               ParentOneOf<["StreamMap, StreamFilter"]>]> {
+                               ParentOneOf<["StreamMap, StreamFilter, StreamReduce"]>]> {
   let summary = "stream yield and termination operation";
   let description = [{
     "stream.yield" yields an SSA value from the steam dialect op region and
