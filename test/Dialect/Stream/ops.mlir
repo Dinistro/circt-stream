@@ -1,4 +1,4 @@
-// RUN: standalone-opt %s | standalone-opt | FileCheck %s
+// RUN: standalone-opt %s --mlir-print-op-generic | standalone-opt | FileCheck %s
 
 module {
     func @min_op(%in: !stream.stream<i32>) {
@@ -73,4 +73,17 @@ module {
   // CHECK-NEXT:  }
   // CHECK-NEXT:  return %{{.*}} : !stream.stream<i64>
   // CHECK-NEXT:}
+
+  func @tuples(%tuple: tuple<i32, i64>) -> tuple<i64, i32> {
+    %a, %b = stream.unpack %tuple : tuple<i32, i64>
+    %res = stream.pack %b, %a : tuple<i64, i32>
+    return %res : tuple<i64, i32>
+  }
+
+  // CHECK: func @tuples(%{{.*}}: tuple<i32, i64>) -> tuple<i64, i32> {
+  // CHECK-NEXT:  %{{.*}}:2 = stream.unpack %{{.*}} : tuple<i32, i64>
+  // CHECK-NEXT:  %{{.*}} = stream.pack %{{.*}}#1, %{{.*}}#0 : tuple<i64, i32>
+  // CHECK-NEXT:  return %{{.*}} : tuple<i64, i32>
+  // CHECK-NEXT:}
+
 }

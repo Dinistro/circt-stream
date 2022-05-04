@@ -14,6 +14,7 @@ include "Standalone/Dialect/Stream/StreamTypes.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/BuiltinTypes.td"
 
 def MinOp : Stream_Op<"min", [NoSideEffect,
         TypesMatchWith<"result type matches element type of 'stream'",
@@ -97,6 +98,44 @@ def ReduceOp : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::Yield
     let assemblyFormat = [{
         `(` $input `)` attr-dict `:` functional-type(operands, $res) $region
     }];
+}
+
+def UnpackOp : Stream_Op<"unpack", [NoSideEffect]> {
+  let summary = "unpacks a tuple";
+  let description = [{
+    The `unpack` operation assignes each value of a tuple to a separate
+    value for further processing. The number of results corresponds
+    to the number of tuple elements.
+
+    Example:
+    ```mlir
+    %a, %b = stream.unpack %tuple {attributes} : tuple<i32, i64>
+    ```
+  }];
+
+  let arguments = (ins Builtin_Tuple:$input);
+
+  let results = (outs Variadic<AnyType>:$results);
+
+  let hasCustomAssemblyFormat = 1;
+}
+
+def PackOp : Stream_Op<"pack", [NoSideEffect]> {
+  let summary = "packs a tuple";
+  let description = [{
+    The `pack` operation constructs a tuple from separate values.
+    The number of operands corresponds to the number of tuple elements.
+
+    Example:
+    ```mlir
+    %tuple = stream.pack %a, %b {attributes} : tuple<i32, i64>
+    ```
+    }];
+
+  let arguments = (ins Variadic<AnyType>:$inputs);
+  let results = (outs Builtin_Tuple:$result);
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 def YieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
