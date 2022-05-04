@@ -197,17 +197,17 @@ static void replaceWithInstance(Operation *op, FuncOp func,
 
 // Builds a handshake::FuncOp and that represents the mapping funtion. This
 // function is then instantiated and connected to its inputs and outputs.
-struct StreamMapLowering : public OpConversionPattern<StreamMap> {
-  using OpConversionPattern<StreamMap>::OpConversionPattern;
+struct MapOpLowering : public OpConversionPattern<MapOp> {
+  using OpConversionPattern<MapOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      StreamMap op, OpAdaptor adaptor,
+      MapOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     TypeConverter *typeConverter = getTypeConverter();
 
     StreamLowering sl(op.getRegion());
 
-    if (failed(lowerRegion<StreamYieldOp>(sl, false, false))) return failure();
+    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     SmallVector<mlir::Type, 8> argTypes = {
         typeConverter->convertType(op.input().getType())};
@@ -225,17 +225,17 @@ struct StreamMapLowering : public OpConversionPattern<StreamMap> {
   }
 };
 
-struct StreamFilterLowering : public OpConversionPattern<StreamFilter> {
-  using OpConversionPattern<StreamFilter>::OpConversionPattern;
+struct FilterOpLowering : public OpConversionPattern<FilterOp> {
+  using OpConversionPattern<FilterOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      StreamFilter op, OpAdaptor adaptor,
+      FilterOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     TypeConverter *typeConverter = getTypeConverter();
 
     StreamLowering sl(op.getRegion());
 
-    if (failed(lowerRegion<StreamYieldOp>(sl, false, false))) return failure();
+    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     SmallVector<mlir::Type, 8> argTypes = {
         typeConverter->convertType(op.input().getType())};
@@ -270,11 +270,11 @@ struct StreamFilterLowering : public OpConversionPattern<StreamFilter> {
   }
 };
 
-struct StreamReduceLowering : public OpConversionPattern<StreamReduce> {
-  using OpConversionPattern<StreamReduce>::OpConversionPattern;
+struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
+  using OpConversionPattern<ReduceOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      StreamReduce op, OpAdaptor adaptor,
+      ReduceOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     TypeConverter *typeConverter = getTypeConverter();
 
@@ -282,7 +282,7 @@ struct StreamReduceLowering : public OpConversionPattern<StreamReduce> {
 
     StreamLowering sl(op.getRegion());
 
-    if (failed(lowerRegion<StreamYieldOp>(sl, false, false))) return failure();
+    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     // TODO: handshake currently only supports i64 buffers, change this as soon
     // as support for other types is added.
@@ -321,9 +321,9 @@ static void populateStreamToHandshakePatterns(
   patterns.add<
     FuncOpLowering,
     ReturnOpLowering,
-    StreamMapLowering,
-    StreamFilterLowering,
-    StreamReduceLowering
+    MapOpLowering,
+    FilterOpLowering,
+    ReduceOpLowering
   >(typeConverter, patterns.getContext());
   // clang-format on
 }
@@ -358,7 +358,7 @@ class StreamToHandshakePass
     target.addIllegalDialect<StreamDialect>();
     // NOTE: we add this here to ensure that the hacky lowerRegion changes
     // will be accepted.
-    target.addLegalOp<StreamYieldOp>();
+    target.addLegalOp<YieldOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

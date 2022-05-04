@@ -15,7 +15,7 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-def StreamMin : Stream_Op<"min", [NoSideEffect,
+def MinOp : Stream_Op<"min", [NoSideEffect,
         TypesMatchWith<"result type matches element type of 'stream'",
                      "input", "res",
                      "$_self.cast<StreamType>().getElementType()">]> {
@@ -32,7 +32,7 @@ def StreamMin : Stream_Op<"min", [NoSideEffect,
     }];
 }
 
-def StreamMinContinuous : Stream_Op<"min_continuous", [NoSideEffect, SameOperandsAndResultType]> {
+def MinContinuousOp : Stream_Op<"min_continuous", [NoSideEffect, SameOperandsAndResultType]> {
     let summary = "Extracts the minimum of a finite stream.";
     let description = [{
         The MinContinuous operation keeps track of the minimal value encountered
@@ -49,7 +49,7 @@ def StreamMinContinuous : Stream_Op<"min_continuous", [NoSideEffect, SameOperand
 
 // TODO: carefull with dependencies between elements
 // TODO: add stronger verification constraints
-def StreamMap : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::StreamYieldOp">]> {
+def MapOp : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
     let summary = "Executes the region on each element";
     let description = [{
         TODO
@@ -65,7 +65,7 @@ def StreamMap : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::StreamY
 }
 
 // TODO: add stronger verification constraints
-def StreamFilter : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::StreamYieldOp">]> {
+def FilterOp : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
     let summary = "Executes the region to check if an element should be preserved in the out stream";
     let description = [{
         TODO
@@ -81,7 +81,7 @@ def StreamFilter : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::S
 }
 
 // TODO: add stronger verification constraints
-def StreamReduce : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::StreamYieldOp">]> {
+def ReduceOp : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
     let summary = "applies the region on each stream element to reduce the stream to a single value";
     let description = [{
         TODO
@@ -99,8 +99,8 @@ def StreamReduce : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::S
     }];
 }
 
-def StreamYieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               ParentOneOf<["StreamMap, StreamFilter, StreamReduce"]>]> {
+def YieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
+                               ParentOneOf<["MapOp, FilterOp, ReduceOp"]>]> {
   let summary = "stream yield and termination operation";
   let description = [{
     "stream.yield" yields an SSA value from the steam dialect op region and
