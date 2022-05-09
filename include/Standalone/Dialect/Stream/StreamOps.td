@@ -100,7 +100,12 @@ def ReduceOp : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::Yield
     }];
 }
 
-def UnpackOp : Stream_Op<"unpack", [NoSideEffect]> {
+def UnpackOp : Stream_Op<"unpack", [
+      NoSideEffect,
+      TypesMatchWith<"result types match element types of 'tuple'",
+                     "input", "results",
+                     "$_self.cast<TupleType>().getTypes()">]> {
+
   let summary = "unpacks a tuple";
   let description = [{
     The `unpack` operation assignes each value of a tuple to a separate
@@ -120,7 +125,12 @@ def UnpackOp : Stream_Op<"unpack", [NoSideEffect]> {
   let hasCustomAssemblyFormat = 1;
 }
 
-def PackOp : Stream_Op<"pack", [NoSideEffect]> {
+def PackOp : Stream_Op<"pack", [
+  NoSideEffect,
+  TypesMatchWith<"input types match element types of 'tuple'",
+                   "result", "inputs",
+                   "$_self.cast<TupleType>().getTypes()">
+]> {
   let summary = "packs a tuple";
   let description = [{
     The `pack` operation constructs a tuple from separate values.

@@ -315,6 +315,30 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
   }
 };
 
+struct PackOpLowering : public OpConversionPattern<stream::PackOp> {
+  using OpConversionPattern<stream::PackOp>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      stream::PackOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<handshake::PackOp>(op, adaptor.getOperands());
+
+    return success();
+  }
+};
+
+struct UnpackOpLowering : public OpConversionPattern<stream::UnpackOp> {
+  using OpConversionPattern<stream::UnpackOp>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      stream::UnpackOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<handshake::UnpackOp>(op, adaptor.input());
+
+    return success();
+  }
+};
+
 static void populateStreamToHandshakePatterns(
     StreamTypeConverter &typeConverter, RewritePatternSet &patterns) {
   // clang-format off
@@ -323,7 +347,9 @@ static void populateStreamToHandshakePatterns(
     ReturnOpLowering,
     MapOpLowering,
     FilterOpLowering,
-    ReduceOpLowering
+    ReduceOpLowering,
+    PackOpLowering,
+    UnpackOpLowering
   >(typeConverter, patterns.getContext());
   // clang-format on
 }
