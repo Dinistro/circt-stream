@@ -1,15 +1,15 @@
 // RUN: standalone-opt %s --convert-stream-to-handshake | FileCheck %s
 
 module {
-    func.func @map(%in: !stream.stream<i32>) -> !stream.stream<i32> {
-        %res = stream.map(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
-        ^0(%val : i32):
-            %0 = arith.constant 1 : i32
-            %r = arith.addi %0, %val : i32
-            stream.yield %r : i32
-        }
-        return %res : !stream.stream<i32>
+  func.func @map(%in: !stream.stream<i32>) -> !stream.stream<i32> {
+    %res = stream.map(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
+    ^0(%val : i32):
+      %0 = arith.constant 1 : i32
+      %r = arith.addi %0, %val : i32
+      stream.yield %r : i32
     }
+    return %res : !stream.stream<i32>
+  }
 
 // CHECK:  handshake.func private @[[LABEL:.*]](%{{.*}}: i32, %{{.*}}: none, ...) -> (i32, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
 // CHECK-NEXT:    %{{.*}} = merge %{{.*}} : i32
