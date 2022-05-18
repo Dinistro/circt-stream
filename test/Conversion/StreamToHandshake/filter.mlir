@@ -1,7 +1,7 @@
 // RUN: standalone-opt %s --convert-stream-to-handshake | FileCheck %s
 
 module {
-  func @filter(%in: !stream.stream<i32>) -> !stream.stream<i32> {
+  func.func @filter(%in: !stream.stream<i32>) -> !stream.stream<i32> {
     %out = stream.filter(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
     ^bb0(%val: i32):
       %c0_i32 = arith.constant 0 : i32

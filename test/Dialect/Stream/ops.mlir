@@ -1,24 +1,24 @@
 // RUN: standalone-opt %s --mlir-print-op-generic | standalone-opt | FileCheck %s
 
 module {
-    func @min_op(%in: !stream.stream<i32>) {
+    func.func @min_op(%in: !stream.stream<i32>) {
         %min = stream.min(%in) : (!stream.stream<i32>) -> i32
         return
     }
 
-    // CHECK: func @min_op(%{{.*}}: !stream.stream<i32>) {
+    // CHECK: func.func @min_op(%{{.*}}: !stream.stream<i32>) {
     // CHECK-NEXT:   %{{.*}} = stream.min(%{{.*}}) : (!stream.stream<i32>) -> i32
 
-    func @min_cont(%in: !stream.stream<i32>) -> !stream.stream<i32> {
+    func.func @min_cont(%in: !stream.stream<i32>) -> !stream.stream<i32> {
         %res = stream.min_continuous(%in) : (!stream.stream<i32>) -> !stream.stream<i32>
         return %res : !stream.stream<i32>
     }
 
-    // CHECK: func @min_cont(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
+    // CHECK: func.func @min_cont(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
     // CHECK-NEXT:    %{{.*}} = stream.min_continuous(%{{.*}}) : (!stream.stream<i32>) -> !stream.stream<i32>
     // CHECK-NEXT:    return %{{.*}} : !stream.stream<i32>
 
-    func @map(%in: !stream.stream<i32>) -> !stream.stream<i32> {
+    func.func @map(%in: !stream.stream<i32>) -> !stream.stream<i32> {
         %res = stream.map(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
         ^0(%val : i32):
             %0 = arith.constant 1 : i32
@@ -28,7 +28,7 @@ module {
         return %res : !stream.stream<i32>
     }
 
-    // CHECK: func @map(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
+    // CHECK: func.func @map(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
     // CHECK-NEXT:    %{{.*}} = stream.map(%{{.*}}) : (!stream.stream<i32>) -> !stream.stream<i32> {
     // CHECK-NEXT:    ^{{.*}}(%{{.*}}: i32):
     // CHECK-NEXT:        %{{.*}} = arith.constant 1 : i32
@@ -38,7 +38,7 @@ module {
     // CHECK-NEXT:    return %{{.*}} : !stream.stream<i32>
     // CHECK-NEXT: }
 
-    func @filter(%in: !stream.stream<i32>) -> !stream.stream<i32> {
+    func.func @filter(%in: !stream.stream<i32>) -> !stream.stream<i32> {
       %res = stream.filter(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
       ^0(%val : i32):
         %cond = arith.constant false
@@ -47,7 +47,7 @@ module {
       return %res : !stream.stream<i32>
     }
 
-    // CHECK: func @filter(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
+    // CHECK: func.func @filter(%{{.*}}: !stream.stream<i32>) -> !stream.stream<i32> {
     // CHECK-NEXT:     %{{.*}} = stream.filter(%{{.*}}) : (!stream.stream<i32>) -> !stream.stream<i32> {
     // CHECK-NEXT:     ^{{.*}}(%{{.*}}: i32):
     // CHECK-NEXT:         %{{.*}} = arith.constant false
@@ -56,7 +56,7 @@ module {
     // CHECK-NEXT:     return %{{.*}} : !stream.stream<i32>
     // CHECK-NEXT: }
 
-  func @reduce(%in: !stream.stream<i64>) -> !stream.stream<i64> {
+  func.func @reduce(%in: !stream.stream<i64>) -> !stream.stream<i64> {
     %res = stream.reduce(%in) {initValue = 0 : i64}: (!stream.stream<i64>) -> !stream.stream<i64> {
     ^0(%acc: i64, %val: i64):
       %r = arith.addi %acc, %val : i64
@@ -65,7 +65,7 @@ module {
     return %res : !stream.stream<i64>
   }
 
-  // CHECK: func @reduce(%{{.*}}: !stream.stream<i64>) -> !stream.stream<i64> {
+  // CHECK: func.func @reduce(%{{.*}}: !stream.stream<i64>) -> !stream.stream<i64> {
   // CHECK-NEXT:  %{{.*}} = stream.reduce(%a{{.*}}) {initValue = 0 : i64} : (!stream.stream<i64>) -> !stream.stream<i64> {
   // CHECK-NEXT:  ^bb0(%{{.*}}: i64, %{{.*}}: i64):
   // CHECK-NEXT:    %{{.*}} = arith.addi %{{.*}}, %{{.*}} : i64
@@ -74,13 +74,13 @@ module {
   // CHECK-NEXT:  return %{{.*}} : !stream.stream<i64>
   // CHECK-NEXT:}
 
-  func @tuples(%tuple: tuple<i32, i64>) -> tuple<i64, i32> {
+  func.func @tuples(%tuple: tuple<i32, i64>) -> tuple<i64, i32> {
     %a, %b = stream.unpack %tuple : tuple<i32, i64>
     %res = stream.pack %b, %a : tuple<i64, i32>
     return %res : tuple<i64, i32>
   }
 
-  // CHECK: func @tuples(%{{.*}}: tuple<i32, i64>) -> tuple<i64, i32> {
+  // CHECK: func.func @tuples(%{{.*}}: tuple<i32, i64>) -> tuple<i64, i32> {
   // CHECK-NEXT:  %{{.*}}:2 = stream.unpack %{{.*}} : tuple<i32, i64>
   // CHECK-NEXT:  %{{.*}} = stream.pack %{{.*}}#1, %{{.*}}#0 : tuple<i64, i32>
   // CHECK-NEXT:  return %{{.*}} : tuple<i64, i32>
