@@ -161,8 +161,10 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
   LogicalResult matchAndRewrite(
       func::ReturnOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    SmallVector<Value, 4> operands = llvm::to_vector<4>(adaptor.getOperands());
+    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
 
+    assert(operands.size() == 1 &&
+           "currently multiple streams are not supported");
     // Add EOS signal
     operands.push_back(getEOSSignal(operands[0]));
 
@@ -220,8 +222,6 @@ static FuncOp createFuncOp(Region &region, StringRef name, TypeRange argTypes,
 static void replaceWithInstance(Operation *op, FuncOp func,
                                 ValueRange newOperands,
                                 ConversionPatternRewriter &rewriter) {
-  // newOperands.push_back(getCtrlSignal(newOperands));
-
   rewriter.setInsertionPoint(op);
   InstanceOp instance =
       rewriter.create<InstanceOp>(op->getLoc(), func, newOperands);
@@ -230,18 +230,6 @@ static void replaceWithInstance(Operation *op, FuncOp func,
   rewriter.replaceOp(op, instance.getResults().front());
 }
 
-static LogicalResult transformRegion(Region &region,
-                                     ConversionPatternRewriter &rewriter,
-                                     TypeConverter *typeConverter,
-                                     TypeConverter::SignatureConversion &sig) {
-  StreamLowering sl(region);
-  if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
-
-  rewriter.applySignatureConversion(&region, sig, typeConverter);
-  return success();
-}
-
-// TODO How to use this for reduce?
 static void collectOperandsAndSignature(SmallVectorImpl<Value> &newOperands,
                                         ValueRange adaptorOperands,
                                         TypeRange oldTypes,
@@ -273,6 +261,14 @@ static void collectOperandsAndSignature(SmallVectorImpl<Value> &newOperands,
   newOperands.push_back(getCtrlSignal(adaptorOperands));
 }
 
+// Usual flow:
+// 1. Apply lowerRegion from StdToHandshake
+// 2. Collect operands
+// 3. Create new signature
+// 4. Apply signature changes
+// 5. Change parts of the lowered Region to fit the operations needs.
+// 6. Create function and replace operation with InstanceOp
+
 // Builds a handshake::FuncOp and that represents the mapping funtion. This
 // function is then instantiated and connected to its inputs and outputs.
 struct MapOpLowering : public OpConversionPattern<MapOp> {
@@ -281,6 +277,10 @@ struct MapOpLowering : public OpConversionPattern<MapOp> {
   LogicalResult matchAndRewrite(
       MapOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
+    Region &r = op.getRegion();
+    StreamLowering sl(r);
+    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
+
     TypeConverter *typeConverter = getTypeConverter();
 
     SmallVector<Value> operands;
@@ -290,30 +290,24 @@ struct MapOpLowering : public OpConversionPattern<MapOp> {
                                 op->getOperandTypes(), sig,
                                 rewriter.getContext());
 
-    if (failed(transformRegion(op.getRegion(), rewriter, typeConverter, sig)))
-      return failure();
-
-    SmallVector<mlir::Type, 8> resTypes;
-    if (failed(typeConverter->convertType(op.res().getType(), resTypes)))
-      return failure();
-    resTypes.push_back(rewriter.getI1Type());
-    resTypes.push_back(rewriter.getNoneType());
-
-    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp =
-        createFuncOp(op.getRegion(), getFuncName(op), sig.getConvertedTypes(),
-                     resTypes, rewriter);
-
     // TODO EOS can overtake in-flight tuples
-    Block *entryBlock = &newFuncOp.getRegion().front();
+    Block *entryBlock =
+        rewriter.applySignatureConversion(&r, sig, typeConverter);
     Operation *oldTerm = entryBlock->getTerminator();
 
-    // we need a clean binding of EOS values
+    // conversion before that we need a clean binding of EOS values
     SmallVector<Value> newTermOperands = {oldTerm->getOperand(0),
                                           entryBlock->getArgument(1),
                                           oldTerm->getOperand(1)};
     rewriter.setInsertionPoint(oldTerm);
-    rewriter.replaceOpWithNewOp<handshake::ReturnOp>(oldTerm, newTermOperands);
+    auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
+        oldTerm, newTermOperands);
+
+    TypeRange resTypes = newTerm->getOperandTypes();
+
+    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
+    FuncOp newFuncOp = createFuncOp(
+        r, getFuncName(op), entryBlock->getArgumentTypes(), resTypes, rewriter);
 
     replaceWithInstance(op, newFuncOp, operands, rewriter);
 
@@ -327,6 +321,10 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
   LogicalResult matchAndRewrite(
       FilterOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
+    Region &r = op.getRegion();
+    StreamLowering sl(r);
+    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
+
     TypeConverter *typeConverter = getTypeConverter();
 
     SmallVector<Value> operands;
@@ -336,23 +334,9 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
                                 op->getOperandTypes(), sig,
                                 rewriter.getContext());
 
-    if (failed(transformRegion(op.getRegion(), rewriter, typeConverter, sig)))
-      return failure();
-
-    // TODO: use custom TypeConverter for that?
-    SmallVector<mlir::Type, 8> resTypes;
-    if (failed(typeConverter->convertType(op.input().getType(), resTypes)))
-      return failure();
-    resTypes.push_back(rewriter.getI1Type());
-    resTypes.push_back(rewriter.getNoneType());
-
-    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp =
-        createFuncOp(op.getRegion(), getFuncName(op), sig.getConvertedTypes(),
-                     resTypes, rewriter);
-
     // add filtering mechanism
-    Block *entryBlock = &newFuncOp.getRegion().front();
+    Block *entryBlock =
+        rewriter.applySignatureConversion(&r, sig, typeConverter);
     Operation *oldTerm = entryBlock->getTerminator();
 
     assert(oldTerm->getNumOperands() == 2 &&
@@ -368,7 +352,14 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
     // TODO EOS can overtake in-flight tuples
     SmallVector<Value> newTermOperands = {condBr.trueResult(),
                                           entryBlock->getArgument(1), ctrl};
-    rewriter.replaceOpWithNewOp<handshake::ReturnOp>(oldTerm, newTermOperands);
+    auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
+        oldTerm, newTermOperands);
+
+    TypeRange resTypes = newTerm.getOperandTypes();
+
+    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
+    FuncOp newFuncOp = createFuncOp(
+        r, getFuncName(op), entryBlock->getArgumentTypes(), resTypes, rewriter);
 
     replaceWithInstance(op, newFuncOp, operands, rewriter);
     return success();
@@ -381,8 +372,11 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
   LogicalResult matchAndRewrite(
       ReduceOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    TypeConverter *typeConverter = getTypeConverter();
+    Region &r = op.getRegion();
+    StreamLowering sl(r);
+    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
+    TypeConverter *typeConverter = getTypeConverter();
     Type resultType = typeConverter->convertType(op.res().getType());
 
     // TODO: handshake currently only supports i64 buffers, change this as soon
@@ -392,25 +386,16 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
 
     SmallVector<Value> operands;
     TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 2);
+    sig.addInputs(0, resultType);
 
-    // Signature is incompatible with the amount of operands
+    // Signature is incompatible with the amount of operands, thus offset of 1
     collectOperandsAndSignature(operands, adaptor.getOperands(),
                                 op->getOperandTypes(), sig,
                                 rewriter.getContext(), 1);
 
-    // TODO find a nice, uniform way to do that
-    StreamLowering sl(op.getRegion());
-    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
-
-    SmallVector<mlir::Type> resTypes = {resultType, rewriter.getI1Type(),
-                                        rewriter.getNoneType()};
-
-    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp =
-        createFuncOp(op.getRegion(), getFuncName(op), sig.getConvertedTypes(),
-                     resTypes, rewriter);
-
-    Block *entryBlock = &newFuncOp.getRegion().front();
+    Block *entryBlock =
+        rewriter.applySignatureConversion(&r, sig, typeConverter);
+    // Block *entryBlock = &r.front();
     Operation *oldTerm = entryBlock->getTerminator();
     rewriter.setInsertionPointToStart(entryBlock);
     auto buffer = rewriter.create<handshake::BufferOp>(
@@ -421,16 +406,22 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
     // TODO check if this is an MLIR bug
     buffer->setAttr("initValues",
                     rewriter.getI64ArrayAttr({(int64_t)adaptor.initValue()}));
-    sig.remapInput(0, buffer.result());
-    entryBlock = rewriter.applySignatureConversion(&newFuncOp.getRegion(), sig,
-                                                   typeConverter);
+    rewriter.replaceUsesOfBlockArgument(entryBlock->getArgument(0),
+                                        buffer.result());
+    entryBlock->eraseArgument(0);
 
     // TODO we need a clean binding of EOS values
     SmallVector<Value> newTermOperands = {oldTerm->getOperand(0),
                                           entryBlock->getArgument(1),
                                           oldTerm->getOperand(1)};
     rewriter.setInsertionPoint(oldTerm);
-    rewriter.replaceOpWithNewOp<handshake::ReturnOp>(oldTerm, newTermOperands);
+    auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
+        oldTerm, newTermOperands);
+
+    TypeRange resTypes = newTerm.getOperandTypes();
+    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
+    FuncOp newFuncOp = createFuncOp(
+        r, getFuncName(op), entryBlock->getArgumentTypes(), resTypes, rewriter);
 
     replaceWithInstance(op, newFuncOp, operands, rewriter);
     return success();
