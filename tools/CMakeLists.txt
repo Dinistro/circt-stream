@@ -32,6 +32,7 @@ set(LIBS
         CIRCTScheduling
         CIRCTSchedulingTestPasses
         CIRCTSeq
+        CIRCTSeqTransforms
         CIRCTStandardToHandshake
         CIRCTStandardToStaticLogic
         CIRCTStaticLogicOps

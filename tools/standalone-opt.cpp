@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
 
   circt::firrtl::registerPasses();
   circt::llhd::initLLHDTransformationPasses();
-  circt::seq::registerSeqPasses();
+  circt::seq::registerPasses();
   circt::sv::registerPasses();
   circt::handshake::registerPasses();
   circt::hw::registerPasses();
