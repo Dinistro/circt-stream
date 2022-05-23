@@ -372,6 +372,13 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
   }
 };
 
+/// Lowers a reduce operation to a ahndshake circuit
+///
+/// Accumulates the result of the reduction in a buffer. On EOS this result is
+/// emitted, followed by a EOS = true one cycle after the emission of the
+/// result.
+///
+/// While the reduction is running, no output is produced.
 struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
   using OpConversionPattern<ReduceOp>::OpConversionPattern;
 
@@ -413,21 +420,44 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
     buffer->setAttr("initValues",
                     rewriter.getI64ArrayAttr({(int64_t)adaptor.initValue()}));
 
-    Value eos = entryBlock->getArgument(2);
-    assert(eos.getType() == rewriter.getI1Type());
-    auto condBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), eos, buffer);
+    Value eosIn = entryBlock->getArgument(2);
+    assert(eosIn.getType() == rewriter.getI1Type());
 
-    // Buffer -> either feed to lambda or to output, depending on EOS
-    // signal. Forward EOS to output
+    auto dataBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), eosIn, buffer);
+    auto eosBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), eosIn, eosIn);
+    auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), eosIn, oldTerm->getOperand(1));
+
+    // A sequental buffer ensures a cycle delay of 1
+    auto eosBuf = rewriter.create<handshake::BufferOp>(
+        rewriter.getUnknownLoc(), rewriter.getI1Type(), 1, eosBr.trueResult(),
+        BufferTypeEnum::seq);
+    // The circuit has to emit EOS = 0 when producing the result
+    auto eosFalse = rewriter.create<handshake::ConstantOp>(
+        rewriter.getUnknownLoc(),
+        rewriter.getIntegerAttr(rewriter.getI1Type(), 0), ctrlBr.trueResult());
+
+    auto eosOut = rewriter.create<handshake::MergeOp>(
+        rewriter.getUnknownLoc(),
+        ValueRange({eosBuf.getResult(), eosFalse.getResult()}));
+
+    auto ctrlBuf = rewriter.create<handshake::BufferOp>(
+        rewriter.getUnknownLoc(), rewriter.getNoneType(), 1,
+        ctrlBr.trueResult(), BufferTypeEnum::seq);
+
+    // Ensures that an additional ctrl signal is emited with EOS = true
+    auto ctrlOut = rewriter.create<handshake::MergeOp>(
+        rewriter.getUnknownLoc(),
+        ValueRange({ctrlBuf.getResult(), ctrlBr.trueResult()}));
+
     rewriter.replaceUsesOfBlockArgument(entryBlock->getArgument(0),
-                                        condBr.falseResult());
+                                        dataBr.falseResult());
     entryBlock->eraseArgument(0);
 
-    // TODO we need a clean binding of EOS values
-    SmallVector<Value> newTermOperands = {condBr.trueResult(),
-                                          entryBlock->getArgument(1),
-                                          oldTerm->getOperand(1)};
+    SmallVector<Value> newTermOperands = {dataBr.trueResult(), eosOut, ctrlOut};
+
     rewriter.setInsertionPoint(oldTerm);
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
