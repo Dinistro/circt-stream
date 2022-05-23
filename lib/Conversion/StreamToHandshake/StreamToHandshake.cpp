@@ -60,7 +60,7 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
     FunctionType oldFuncType = op.getFunctionType().cast<FunctionType>();
 
     TypeConverter::SignatureConversion sig(oldFuncType.getNumInputs());
-    SmallVector<Type, 1> newResults;
+    SmallVector<Type> newResults;
     if (failed(
             typeConverter->convertSignatureArgs(oldFuncType.getInputs(), sig)))
       return failure();
@@ -87,7 +87,7 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
     // TODO same problem as for the input types
 
     // Add result EOS types
-    for (auto it : llvm::enumerate(oldFuncType.getInputs())) {
+    for (auto it : llvm::enumerate(oldFuncType.getResults())) {
       auto type = it.value();
       if (!type.isa<StreamType>()) continue;
       newResults.push_back(IntegerType::get(type.getContext(), 1));
