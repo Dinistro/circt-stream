@@ -406,12 +406,20 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
     // TODO check if this is an MLIR bug
     buffer->setAttr("initValues",
                     rewriter.getI64ArrayAttr({(int64_t)adaptor.initValue()}));
+
+    Value eos = entryBlock->getArgument(2);
+    assert(eos.getType() == rewriter.getI1Type());
+    auto condBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), eos, buffer);
+
+    // Buffer -> either feed to lambda or to output, depending on EOS
+    // signal. Forward EOS to output
     rewriter.replaceUsesOfBlockArgument(entryBlock->getArgument(0),
-                                        buffer.result());
+                                        condBr.falseResult());
     entryBlock->eraseArgument(0);
 
     // TODO we need a clean binding of EOS values
-    SmallVector<Value> newTermOperands = {oldTerm->getOperand(0),
+    SmallVector<Value> newTermOperands = {condBr.trueResult(),
                                           entryBlock->getArgument(1),
                                           oldTerm->getOperand(1)};
     rewriter.setInsertionPoint(oldTerm);
