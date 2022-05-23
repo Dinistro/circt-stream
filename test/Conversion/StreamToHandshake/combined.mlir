@@ -22,9 +22,14 @@ func.func @combined(%in: !stream.stream<i512>) -> !stream.stream<i512> {
 // CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : none
 // CHECK-NEXT:    %{{.*}} = constant %{{.*}}#0 {value = 0 : i512} : i512
 // CHECK-NEXT:    %{{.*}} = arith.cmpi sgt, %{{.*}}, %{{.*}} : i512
-// CHECK-NEXT:    %{{.*}}, %{{.*}} = cond_br %{{.*}}, %{{.*}}#1 : i512
+// CHECK-NEXT:    %{{.*}}:3 = fork [3] %{{.*}} : i1
+// CHECK-NEXT:    %{{.*}}, %{{.*}} = cond_br %{{.*}}#2, %{{.*}}#1 : i512
 // CHECK-NEXT:    sink %{{.*}} : i512
-// CHECK-NEXT:    return %{{.*}}, %{{.*}}, %{{.*}}#1 : i512, i1, none
+// CHECK-NEXT:    %{{.*}}, %{{.*}} = cond_br %{{.*}}#1, %{{.*}} : i1
+// CHECK-NEXT:    sink %{{.*}} : i1
+// CHECK-NEXT:    %{{.*}}, %{{.*}} = cond_br %{{.*}}#0, %{{.*}}#1 : none
+// CHECK-NEXT:    sink %{{.*}} : none
+// CHECK-NEXT:    return %{{.*}}, %{{.*}}, %{{.*}} : i512, i1, none
 // CHECK-NEXT:  }
 // CHECK-NEXT:  handshake.func private @[[LABEL_MAP:.*]](%{{.*}}: i512, {{.*}}: i1, %{{.*}}: none, ...) -> (i512, i1, none) attributes {argNames = ["in0", "in1", "inCtrl"], resNames = ["out0", "out1", "outCtrl"]} {
 // CHECK-NEXT:    %{{.*}} = merge %{{.*}} : i512

@@ -344,14 +344,20 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
     rewriter.setInsertionPointToEnd(entryBlock);
     Value input = entryBlock->getArgument(0);
     Value cond = oldTerm->getOperand(0);
+    Value eos = entryBlock->getArgument(1);
     Value ctrl = oldTerm->getOperand(1);
 
-    auto condBr = rewriter.create<handshake::ConditionalBranchOp>(
+    auto dataBr = rewriter.create<handshake::ConditionalBranchOp>(
         rewriter.getUnknownLoc(), cond, input);
+    // Makes sure we only emit EOS and Ctrl when data is produced
+    auto eosBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), cond, eos);
+    auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), cond, ctrl);
 
     // TODO EOS can overtake in-flight tuples
-    SmallVector<Value> newTermOperands = {condBr.trueResult(),
-                                          entryBlock->getArgument(1), ctrl};
+    SmallVector<Value> newTermOperands = {
+        dataBr.trueResult(), eosBr.trueResult(), ctrlBr.trueResult()};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
