@@ -18,3 +18,6 @@ lit.site.cfg.py
 
 # External software
 /ext
+
+# tmp directories
+/tmp
