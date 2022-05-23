@@ -8,6 +8,8 @@
 
 #include "Standalone/Dialect/Stream/StreamOps.h"
 
+#include <llvm/ADT/STLExtras.h>
+
 #include "Standalone/Dialect/Stream/StreamDialect.h"
 #include "Standalone/Dialect/Stream/StreamTypes.h"
 #include "mlir/IR/Builders.h"
@@ -65,4 +67,72 @@ void PackOp::print(OpAsmPrinter &p) {
   p << " " << inputs();
   p.printOptionalAttrDict((*this)->getAttrs());
   p << " : " << result().getType();
+}
+
+ParseResult CreateOp::parse(OpAsmParser &parser, OperationState &result) {
+  parser.parseOptionalAttrDict(result.attributes);
+
+  StreamType type;
+  if (parser.parseType(type)) return failure();
+
+  result.addTypes(type);
+
+  Type elementType = type.getElementType();
+  if (!elementType.isIntOrIndex())
+    return parser.emitError(parser.getNameLoc(),
+                            "can only create streams of integers");
+
+  SmallVector<Attribute> elements;
+  if (parser.parseLSquare()) return failure();
+
+  if (parser.parseCommaSeparatedList([&]() {
+        APInt element(elementType.getIntOrFloatBitWidth(), 0);
+        if (parser.parseInteger(element)) return failure();
+        elements.push_back(IntegerAttr::get(elementType, element));
+        return success();
+      }))
+    return failure();
+
+  if (parser.parseRSquare()) return failure();
+
+  result.addAttribute("values", ArrayAttr::get(parser.getContext(), elements));
+  return success();
+}
+
+void CreateOp::print(OpAsmPrinter &p) {
+  p.printOptionalAttrDict((*this)->getAttrs(), {"values"});
+  p << " ";
+  p << result().getType();
+  p << " [";
+  llvm::interleaveComma(values(), p, [&](Attribute attr) {
+    assert(attr.isa<IntegerAttr>() && "can only handle integer attributes");
+
+    auto intAttr = attr.dyn_cast<IntegerAttr>();
+
+    p << intAttr.getValue();
+  });
+  p << "]";
+}
+
+LogicalResult CreateOp::verify() {
+  StreamType type = result().getType().dyn_cast<StreamType>();
+  assert(type && "the type constraint should ensure that we get a StreamType");
+
+  Type elementType = type.getElementType();
+
+  for (auto it : llvm::enumerate(values())) {
+    unsigned i = it.index();
+    auto attr = it.value();
+    auto intAttr = attr.dyn_cast<IntegerAttr>();
+    if (!intAttr)
+      return emitError("element #") << i << " is not an integer attribute";
+
+    if (intAttr.getType() != elementType)
+      return emitError("element #")
+             << i << "'s type does not match the type of the stream: expected "
+             << elementType << " got " << intAttr.getType();
+  }
+
+  // TODO ensure that all array elements have the same type
+  return success();
 }
