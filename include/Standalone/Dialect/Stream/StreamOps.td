@@ -186,6 +186,13 @@ def CreateOp : Stream_Op<"create", [
   let arguments = (ins ArrayAttr:$values);
   let results = (outs StreamType:$result);
 
+  let extraClassDeclaration = [{
+    Type getElementType() {
+      return this->result().getType().dyn_cast<StreamType>().getElementType();
+    }
+  }];
+
+
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 }
