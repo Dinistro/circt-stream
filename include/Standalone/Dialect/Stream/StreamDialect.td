@@ -21,6 +21,10 @@ def Stream_Dialect : Dialect {
     let description = [{
         TODO
     }];
+
+    let useDefaultTypePrinterParser = 1;
+    //let useDefaultAttributePrinterParser = 1;
+
     let cppNamespace = "::mlir::stream";
 }
 
