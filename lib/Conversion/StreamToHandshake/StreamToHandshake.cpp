@@ -39,7 +39,11 @@ class StreamTypeConverter : public TypeConverter {
  public:
   StreamTypeConverter() {
     addConversion([](Type type) { return type; });
-    addConversion([](StreamType type) { return type.getElementType(); });
+    addConversion([](StreamType type) {
+      MLIRContext *ctx = type.getContext();
+      return TupleType::get(ctx,
+                            {type.getElementType(), IntegerType::get(ctx, 1)});
+    });
   }
 };
 
@@ -65,33 +69,13 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
             typeConverter->convertSignatureArgs(oldFuncType.getInputs(), sig)))
       return failure();
 
-    // TODO replace the above with custom functionality to fill up the signature
-    // conversion Currently, EOS is only added at the end of the inputs and not
-    // directly after each streaming value
-
-    // Add EOS for each stream input
-    for (auto it : llvm::enumerate(oldFuncType.getInputs())) {
-      auto type = it.value();
-      if (!type.isa<StreamType>()) continue;
-      sig.addInputs(IntegerType::get(type.getContext(), 1));
-    }
-
     // add the ctrl input
-    sig.addInputs({rewriter.getNoneType()});
+    sig.addInputs(rewriter.getNoneType());
     if (failed(typeConverter->convertTypes(oldFuncType.getResults(),
                                            newResults)) ||
         failed(
             rewriter.convertRegionTypes(&op.getBody(), *typeConverter, &sig)))
       return failure();
-
-    // TODO same problem as for the input types
-
-    // Add result EOS types
-    for (auto it : llvm::enumerate(oldFuncType.getResults())) {
-      auto type = it.value();
-      if (!type.isa<StreamType>()) continue;
-      newResults.push_back(IntegerType::get(type.getContext(), 1));
-    }
 
     newResults.push_back(rewriter.getNoneType());
     auto newFuncType =
@@ -111,10 +95,6 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
                                 newFuncOp.end());
 
     rewriter.eraseOp(op);
-
-    // TODO cannot use that here, due to changed block argument types
-    // HandshakeLowering fol(newFuncOp.getBody());
-    // if (failed(lowerRegion(fol, false, false))) return failure();
     newFuncOp.resolveArgAndResNames();
 
     return success();
@@ -169,10 +149,9 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
       ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
 
+    // TODO not sure if this is still the case
     assert(operands.size() == 1 &&
            "currently multiple streams are not supported");
-    // Add EOS signal
-    operands.push_back(getEOSSignal(operands[0]));
 
     // return block arg ctrl signal if nothing else has to be returned
     if (adaptor.getOperands().size() == 0) {
@@ -398,8 +377,8 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
     TypeConverter *typeConverter = getTypeConverter();
     Type resultType = typeConverter->convertType(op.res().getType());
 
-    // TODO: handshake currently only supports i64 buffers, change this as soon
-    // as support for other types is added.
+    // TODO: handshake currently only supports i64 buffers, change this as
+    // soon as support for other types is added.
     assert(resultType == rewriter.getI64Type() &&
            "currently, only i64 buffers are supported");
 
@@ -615,7 +594,8 @@ static void populateStreamToHandshakePatterns(
   // clang-format on
 }
 
-// ensures that the IR is in a valid state after the initial partial conversion
+// ensures that the IR is in a valid state after the initial partial
+// conversion
 static LogicalResult materializeForksAndSinks(ModuleOp m) {
   for (auto funcOp :
        llvm::make_early_inc_range(m.getOps<handshake::FuncOp>())) {
