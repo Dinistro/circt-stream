@@ -262,33 +262,46 @@ struct MapOpLowering : public OpConversionPattern<MapOp> {
   LogicalResult matchAndRewrite(
       MapOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
     Region &r = op.getRegion();
     StreamLowering sl(r);
     if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     TypeConverter *typeConverter = getTypeConverter();
-
-    SmallVector<Value> operands;
     TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
 
-    collectOperandsAndSignature(operands, adaptor.getOperands(),
-                                op->getOperandTypes(), sig,
-                                rewriter.getContext());
+    if (failed(typeConverter->convertSignatureArgs(op->getOperandTypes(), sig)))
+      return failure();
 
-    // TODO EOS can overtake in-flight tuples
+    //  add the ctrl input
+    sig.addInputs(adaptor.getOperands().size(), rewriter.getNoneType());
+
     Block *entryBlock =
         rewriter.applySignatureConversion(&r, sig, typeConverter);
+
+    // Add unpack op
+    rewriter.setInsertionPointToStart(entryBlock);
+    // TODO this is a hardcoded number, I do not like it.
+    BlockArgument tupleIn = entryBlock->getArgument(0);
+    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+    rewriter.replaceUsesOfBlockArgument(tupleIn, unpack.getResult(0));
+    Value eos = unpack.getResult(1);
+
     Operation *oldTerm = entryBlock->getTerminator();
 
     // conversion before that we need a clean binding of EOS values
-    SmallVector<Value> newTermOperands = {oldTerm->getOperand(0),
-                                          entryBlock->getArgument(1),
-                                          oldTerm->getOperand(1)};
     rewriter.setInsertionPoint(oldTerm);
+    auto tupleOut = rewriter.create<handshake::PackOp>(
+        oldTerm->getLoc(), ValueRange({oldTerm->getOperand(0), eos}));
+
+    SmallVector<Value> newTermOperands = {tupleOut, oldTerm->getOperand(1)};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
     TypeRange resTypes = newTerm->getOperandTypes();
+
+    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
+    operands.push_back(getCtrlSignal(adaptor.getOperands()));
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
     FuncOp newFuncOp = createFuncOp(
