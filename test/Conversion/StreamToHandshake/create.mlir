@@ -4,7 +4,7 @@ func.func @create() -> !stream.stream<i32> {
   %out = stream.create !stream.stream<i32> [1,2,3]
   return %out : !stream.stream<i32>
 }
-// CHECK:  handshake.func private @[[LABEL:.*]](%{{.*}}: none, ...) -> (i32, i1, none) attributes {argNames = ["inCtrl"], resNames = ["out0", "out1", "outCtrl"]} {
+// CHECK:  handshake.func private @[[LABEL:.*]](%{{.*}}: none, ...) -> (tuple<i32, i1>, none) attributes {argNames = ["inCtrl"], resNames = ["out0", "outCtrl"]} {
 // CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : none
 // CHECK-NEXT:    %{{.*}} = constant %{{.*}}#1 {value = false} : i1
 // CHECK-NEXT:    %{{.*}} = buffer [1] seq %{{.*}} {initValues = [1]} : i1
@@ -20,9 +20,7 @@ func.func @create() -> !stream.stream<i32> {
 // CHECK-NEXT:    %{{.*}} = constant %{{.*}}#3 {value = 1 : i64} : i64
 // CHECK-NEXT:    %{{.*}} = constant %{{.*}}#2 {value = 3 : i64} : i64
 // CHECK-NEXT:    %{{.*}} = arith.cmpi eq, %{{.*}}#1, %{{.*}} : i64
-// CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : i1
 // CHECK-NEXT:    %{{.*}} = arith.addi %{{.*}}#0, %{{.*}} : i64
-// CHECK-NEXT:    %{{.*}}, %{{.*}} = cond_br %{{.*}}#1, %{{.*}} : i32
-// CHECK-NEXT:    sink %{{.*}} : i32
-// CHECK-NEXT:    return %{{.*}}, %{{.*}}#0, %{{.*}}#1 : i32, i1, none
+// CHECK-NEXT:    %{{.*}} = pack %{{.*}}, %{{.*}} : tuple<i32, i1>
+// CHECK-NEXT:    return %{{.*}}, %{{.*}}#1 : tuple<i32, i1>, none
 // CHECK-NEXT:  }

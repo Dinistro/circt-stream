@@ -552,25 +552,20 @@ struct CreateOpLowering : public OpConversionPattern<stream::CreateOp> {
     // ensure looping of cnt
     cnt.setOperand(newCnt);
 
-    auto dataBr =
-        rewriter.create<handshake::ConditionalBranchOp>(loc, finished, dataBuf);
+    auto tupleOut = rewriter.create<handshake::PackOp>(
+        loc, ValueRange({dataBuf, finished}));
 
     // create terminator
-    rewriter.create<handshake::ReturnOp>(
-        loc, ValueRange({dataBr.falseResult(), finished, ctrl}));
+    auto term = rewriter.create<handshake::ReturnOp>(
+        loc, ValueRange({tupleOut.result(), ctrl}));
 
     // Collect types of function
     SmallVector<Type> argTypes;
     argTypes.push_back(rewriter.getNoneType());
 
-    SmallVector<Type> resTypes;
-    resTypes.push_back(op.getElementType());
-    resTypes.push_back(rewriter.getI1Type());
-    resTypes.push_back(rewriter.getNoneType());
-
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    auto newFuncOp =
-        createFuncOp(r, getFuncName(op), argTypes, resTypes, rewriter);
+    auto newFuncOp = createFuncOp(r, getFuncName(op), argTypes,
+                                  term.getOperandTypes(), rewriter);
 
     replaceWithInstance(op, newFuncOp, {getBlockCtrlSignal(op->getBlock())},
                         rewriter);
