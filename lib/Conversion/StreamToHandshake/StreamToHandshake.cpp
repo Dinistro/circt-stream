@@ -319,51 +319,64 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
   LogicalResult matchAndRewrite(
       FilterOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
     Region &r = op.getRegion();
     StreamLowering sl(r);
     if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     TypeConverter *typeConverter = getTypeConverter();
-
-    SmallVector<Value> operands;
     TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
 
-    collectOperandsAndSignature(operands, adaptor.getOperands(),
-                                op->getOperandTypes(), sig,
-                                rewriter.getContext());
+    if (failed(typeConverter->convertSignatureArgs(op->getOperandTypes(), sig)))
+      return failure();
+
+    //  add the ctrl input
+    sig.addInputs(adaptor.getOperands().size(), rewriter.getNoneType());
 
     // add filtering mechanism
     Block *entryBlock =
         rewriter.applySignatureConversion(&r, sig, typeConverter);
+
+    BlockArgument tupleIn = entryBlock->getArgument(0);
+    rewriter.setInsertionPointToStart(entryBlock);
+    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+    Value input = unpack.getResult(0);
+    Value eos = unpack.getResult(1);
+    rewriter.replaceUsesOfBlockArgument(tupleIn, input);
+
     Operation *oldTerm = entryBlock->getTerminator();
 
     assert(oldTerm->getNumOperands() == 2 &&
            "expected handshake::ReturnOp to have two operands");
     rewriter.setInsertionPointToEnd(entryBlock);
-    Value input = entryBlock->getArgument(0);
+
     Value cond = oldTerm->getOperand(0);
-    Value eos = entryBlock->getArgument(1);
     Value ctrl = oldTerm->getOperand(1);
 
-    auto dataBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), cond, input);
-    // Makes sure we only emit EOS and Ctrl when data is produced
-    auto eosBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), cond, eos);
-    auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), cond, ctrl);
+    auto tupleOut =
+        rewriter.create<handshake::PackOp>(loc, ValueRange({input, eos}));
 
-    // TODO EOS can overtake in-flight tuples
-    SmallVector<Value> newTermOperands = {
-        dataBr.trueResult(), eosBr.trueResult(), ctrlBr.trueResult()};
+    auto condOrEos = rewriter.create<arith::OrIOp>(loc, cond, eos);
+
+    auto dataBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), condOrEos, tupleOut);
+
+    // Makes sure we only emit Ctrl when data is produced
+    auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), condOrEos, ctrl);
+
+    SmallVector<Value> newTermOperands = {dataBr.trueResult(),
+                                          ctrlBr.trueResult()};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
-    TypeRange resTypes = newTerm.getOperandTypes();
+    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
+    operands.push_back(getCtrlSignal(adaptor.getOperands()));
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp = createFuncOp(
-        r, getFuncName(op), entryBlock->getArgumentTypes(), resTypes, rewriter);
+    FuncOp newFuncOp =
+        createFuncOp(r, getFuncName(op), entryBlock->getArgumentTypes(),
+                     newTerm.getOperandTypes(), rewriter);
 
     replaceWithInstance(op, newFuncOp, operands, rewriter);
     return success();
