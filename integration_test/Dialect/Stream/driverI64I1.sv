@@ -2,9 +2,8 @@ module driver();
   logic clock = 0;
   logic reset = 0;
   logic out0_valid, out0_ready;
-  logic [63:0] out0_data;
-  logic out1_valid, out1_ready;
-  logic out1_data;
+  logic [63:0] out0_data_field0;
+  logic out0_data_field1;
   logic inCtrl_valid, inCtrl_ready;
   logic outCtrl_valid, outCtrl_ready;
 
@@ -19,7 +18,6 @@ module driver();
   initial begin
     inCtrl_valid = 1;
     out0_ready = 1;
-    out1_ready = 1;
     outCtrl_ready = 1;
 
     reset = 1;
@@ -30,17 +28,17 @@ module driver();
     // Hold valid high for one clock cycle.
     @(posedge clock);
     inCtrl_valid = 0;
-
-    wait(out1_valid == 1 & out1_data == 1);
-
-    $display("EOS");
-    $finish();
   end
 
-  always @(posedge clock) begin	// <stdin>:11:20
+  always @(posedge clock) begin
     if(out0_valid == 1) begin
-      $display("Element=%d", out0_data);
+      if(out0_data_field1 == 0) begin
+        $display("Element=%d", out0_data_field0);
+      end 
+      else begin
+        $display("EOS");
+        $finish();
+      end
     end
   end
-
 endmodule // driver
