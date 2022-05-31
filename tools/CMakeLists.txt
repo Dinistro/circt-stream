@@ -10,7 +10,6 @@ set(LIBS
         MLIRSCF
         MLIRSCFToControlFlow
 
-        MLIRStandalone
         MLIRStream
 
         CIRCTAffineToStaticLogic
