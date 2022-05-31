@@ -1,4 +1,4 @@
-// RUN: standalone-opt --convert-standalone-to-scf %s | FileCheck %s
+// RUN: stream-opt --convert-standalone-to-scf %s | FileCheck %s
 
 module {
   func.func @simple(%0: i32) -> (i32) {

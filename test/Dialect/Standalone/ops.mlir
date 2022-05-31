@@ -1,4 +1,4 @@
-// RUN: standalone-opt %s | standalone-opt | FileCheck %s
+// RUN: stream-opt %s | stream-opt | FileCheck %s
 
 module {
   // CHECK-LABEL: func.func @bar()

@@ -1,4 +1,4 @@
-// RUN: standalone-opt %s --mlir-print-op-generic | standalone-opt | FileCheck %s
+// RUN: stream-opt %s --mlir-print-op-generic | stream-opt | FileCheck %s
 
 module {
   func.func @min_op(%in: !stream.stream<i32>) {

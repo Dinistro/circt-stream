@@ -1,4 +1,4 @@
-// RUN: standalone-opt %s --convert-stream-to-handshake | FileCheck %s
+// RUN: stream-opt %s --convert-stream-to-handshake | FileCheck %s
 
 module {
   func.func @map(%in: !stream.stream<i32>) -> !stream.stream<i32> {

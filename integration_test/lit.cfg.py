@@ -18,7 +18,7 @@ from lit.llvm.subst import FindTool
 # Configuration file for the 'lit' test runner.
 
 # name: The name of this test suite.
-config.name = 'Thesis'
+config.name = 'Stream'
 
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
@@ -71,7 +71,7 @@ tool_dirs = [
     config.llvm_tools_dir, config.project_tools_dir
 ]
 tools = [
-    'standalone-opt', 'firtool', 'circt-rtl-sim.py',
+    'stream-opt', 'firtool', 'circt-rtl-sim.py',
 ]
 
 # Enable Verilator if it has been detected.

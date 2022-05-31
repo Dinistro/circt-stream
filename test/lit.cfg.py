@@ -16,7 +16,7 @@ from lit.llvm.subst import FindTool
 # Configuration file for the 'lit' test runner.
 
 # name: The name of this test suite.
-config.name = 'STANDALONE'
+config.name = 'Stream'
 
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
@@ -27,7 +27,7 @@ config.suffixes = ['.mlir']
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.standalone_obj_root, 'test')
+config.test_exec_root = os.path.join(config.stream_obj_root, 'test')
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
@@ -46,21 +46,20 @@ config.excludes = ['Inputs', 'Examples', 'CMakeLists.txt', 'README.txt', 'LICENS
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.standalone_obj_root, 'test')
-config.standalone_tools_dir = os.path.join(config.standalone_obj_root, 'bin')
+config.test_exec_root = os.path.join(config.stream_obj_root, 'test')
+config.stream_tools_dir = os.path.join(config.stream_obj_root, 'bin')
 
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 
-tool_dirs = [config.standalone_tools_dir, config.llvm_tools_dir]
+tool_dirs = [config.stream_tools_dir, config.llvm_tools_dir]
 tools = [
-    'standalone-capi-test',
-    'standalone-opt',
+    'stream-opt',
     ToolSubst('%PYTHON', config.python_executable, unresolved='ignore'),
 ]
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 llvm_config.with_environment('PYTHONPATH', [
-    os.path.join(config.mlir_binary_dir, 'python_packages', 'standalone'),
+    os.path.join(config.mlir_binary_dir, 'python_packages', 'stream'),
 ], append_path=True)

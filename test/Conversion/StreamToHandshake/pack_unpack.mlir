@@ -1,4 +1,4 @@
-// RUN: standalone-opt %s --convert-stream-to-handshake | FileCheck %s
+// RUN: stream-opt %s --convert-stream-to-handshake | FileCheck %s
 
 func.func @map(%in: !stream.stream<tuple<i32, i64>>) -> !stream.stream<tuple<i64, i32>> {
   %res = stream.map(%in) : (!stream.stream<tuple<i32, i64>>) -> !stream.stream<tuple<i64, i32>> {
