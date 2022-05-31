@@ -21,9 +21,9 @@ include "mlir/Pass/PassBase.td"
 
 def StreamToHandshake : Pass<"convert-stream-to-handshake", "mlir::ModuleOp"> {
   let summary = "Convert the Stream dialect to Handshake";
-  let constructor = "stream::createStreamToHandshakePass()";
+  let constructor = "circt_stream::createStreamToHandshakePass()";
   let dependentDialects = [
-    "stream::StreamDialect",
+    "circt_stream::stream::StreamDialect",
     "mlir::cf::ControlFlowDialect",
     "mlir::func::FuncDialect",
     "circt::handshake::HandshakeDialect"

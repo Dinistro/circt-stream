@@ -12,14 +12,12 @@
 #include "circt-stream/Conversion/StreamToHandshake.h"
 #include "mlir/Pass/PassRegistry.h"
 
-namespace mlir {
-namespace standalone {
+namespace circt_stream {
 /// Generate the code for registering conversion passes.
 #define GEN_PASS_REGISTRATION
 #include "circt-stream/Conversion/Passes.h.inc"
 
-}  // namespace standalone
-}  // namespace mlir
+}  // namespace circt_stream
 
 #endif  // CIRCT_STREAM_CONVERSION_PASSES_H
 

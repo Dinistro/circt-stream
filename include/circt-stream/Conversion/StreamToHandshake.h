@@ -18,10 +18,9 @@
 
 namespace mlir {
 class Pass;
+}
 
-namespace stream {
+namespace circt_stream {
 std::unique_ptr<mlir::Pass> createStreamToHandshakePass();
-}  // namespace stream
-
-}  // namespace mlir
+}
 #endif  // CIRCT_STREAM_CONVERSION_STREAMTOHANDSHAKE_H_

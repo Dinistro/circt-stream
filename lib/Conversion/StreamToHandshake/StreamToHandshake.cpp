@@ -30,8 +30,8 @@
 using namespace circt;
 using namespace circt::handshake;
 using namespace mlir;
-using namespace standalone;
-using namespace stream;
+using namespace circt_stream;
+using namespace circt_stream::stream;
 
 namespace {
 
@@ -623,7 +623,7 @@ class StreamToHandshakePass
 };
 }  // namespace
 
-std::unique_ptr<Pass> mlir::stream::createStreamToHandshakePass() {
+std::unique_ptr<Pass> circt_stream::createStreamToHandshakePass() {
   return std::make_unique<StreamToHandshakePass>();
 }
 

@@ -16,11 +16,12 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Support/LogicalResult.h"
 
+using namespace mlir;
+using namespace circt_stream;
+using namespace circt_stream::stream;
+
 #define GET_OP_CLASSES
 #include "circt-stream/Dialect/Stream/StreamOps.cpp.inc"
-
-using namespace mlir;
-using namespace stream;
 
 ParseResult UnpackOp::parse(OpAsmParser &parser, OperationState &result) {
   OpAsmParser::UnresolvedOperand tuple;

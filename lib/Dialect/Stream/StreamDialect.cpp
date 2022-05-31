@@ -14,7 +14,8 @@
 #include "mlir/IR/DialectImplementation.h"
 
 using namespace mlir;
-using namespace mlir::stream;
+using namespace circt_stream;
+using namespace circt_stream::stream;
 
 #include "circt-stream/Dialect/Stream/StreamOpsDialect.cpp.inc"
 
