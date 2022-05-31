@@ -1,4 +1,4 @@
-// RUN: standalone-opt %s --convert-stream-to-handshake | FileCheck %s
+// RUN: stream-opt %s --convert-stream-to-handshake | FileCheck %s
 func.func @reduce(%in: !stream.stream<i64>) -> !stream.stream<i64> {
   %res = stream.reduce(%in) {initValue = 0 : i64}: (!stream.stream<i64>) -> !stream.stream<i64> {
   ^0(%acc: i64, %val: i64):

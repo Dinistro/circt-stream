@@ -1,4 +1,4 @@
-// RUN: standalone-opt %s --convert-stream-to-handshake | FileCheck %s
+// RUN: stream-opt %s --convert-stream-to-handshake | FileCheck %s
 
 func.func @create() -> !stream.stream<i32> {
   %out = stream.create !stream.stream<i32> [1,2,3]

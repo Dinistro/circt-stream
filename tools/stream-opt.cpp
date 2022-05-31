@@ -1,4 +1,4 @@
-//===- standalone-opt.cpp ---------------------------------------*- C++ -*-===//
+//===- stream-opt.cpp -------------------------------------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -85,5 +85,5 @@ int main(int argc, char** argv) {
   mlir::standalone::registerConversionPasses();
 
   return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "Standalone optimizer driver\n", registry));
+      mlir::MlirOptMain(argc, argv, "Stream optimizer driver\n", registry));
 }

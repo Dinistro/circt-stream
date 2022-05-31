@@ -1,6 +1,6 @@
 // REQUIRES: ieee-sim
 // UNSUPPORTED: ieee-sim-iverilog
-// RUN: standalone-opt %s --convert-stream-to-handshake \
+// RUN: stream-opt %s --convert-stream-to-handshake \
 // RUN:   --canonicalize='top-down=true region-simplify=true' \
 // RUN:   --handshake-materialize-forks-sinks --canonicalize \
 // RUN:   --handshake-insert-buffers=strategy=all --lower-handshake-to-firrtl | \

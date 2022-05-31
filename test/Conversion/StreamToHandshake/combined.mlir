@@ -1,4 +1,4 @@
-// RUN: standalone-opt %s --convert-stream-to-handshake | FileCheck %s
+// RUN: stream-opt %s --convert-stream-to-handshake | FileCheck %s
 
 func.func @combined(%in: !stream.stream<i512>) -> !stream.stream<i512> {
   %tmp = stream.map(%in) : (!stream.stream<i512>) -> !stream.stream<i512> {

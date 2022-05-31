@@ -43,9 +43,9 @@ set(LIBS
         StandaloneStandaloneToScf
         StandaloneStreamToHandshake
         )
-add_llvm_executable(standalone-opt standalone-opt.cpp)
+add_llvm_executable(stream-opt stream-opt.cpp)
 
-llvm_update_compile_flags(standalone-opt)
-target_link_libraries(standalone-opt PRIVATE ${LIBS})
+llvm_update_compile_flags(stream-opt)
+target_link_libraries(stream-opt PRIVATE ${LIBS})
 
-mlir_check_all_link_libraries(standalone-opt)
+mlir_check_all_link_libraries(stream-opt)
