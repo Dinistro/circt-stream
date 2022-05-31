@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE_STREAMOPS_H
-#define STANDALONE_STREAMOPS_H
+#ifndef CIRCT_STREAM_DIALECT_STREAM_OPS_H
+#define CIRCT_STREAM_DIALECT_STREAM_OPS_H
 
-#include "Standalone/Dialect/Stream/StreamTypes.h"
+#include "circt-stream/Dialect/Stream/StreamTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -18,6 +18,6 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
 #define GET_OP_CLASSES
-#include "Standalone/Dialect/Stream/StreamOps.h.inc"
+#include "circt-stream/Dialect/Stream/StreamOps.h.inc"
 
-#endif  // STANDALONE_STREAMOPS_H
+#endif  // CIRCT_STREAM_DIALECT_STREAM_OPS_H

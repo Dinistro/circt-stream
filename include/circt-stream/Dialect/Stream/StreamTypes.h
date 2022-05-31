@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE_STREAMTYPES_H
-#define STANDALONE_STREAMTYPES_H
+#ifndef CIRCT_STREAM_DIALECT_STREAM_TYPES_H
+#define CIRCT_STREAM_DIALECT_STREAM_TYPES_H
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeSupport.h"
 #include "mlir/IR/Types.h"
 
 #define GET_TYPEDEF_CLASSES
-#include "Standalone/Dialect/Stream/StreamOpsTypes.h.inc"
+#include "circt-stream/Dialect/Stream/StreamOpsTypes.h.inc"
 
-#endif  // STANDALONE_STREAMTYPES_H
+#endif  // CIRCT_STREAM_DIALECT_STREAM_TYPES_H
 

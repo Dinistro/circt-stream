@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STREAM_DIALECT
-#define STREAM_DIALECT
+#ifndef CIRCT_STREAM_DIALECT_STREAM_TD
+#define CIRCT_STREAM_DIALECT_STREAM_TD
 
 include "mlir/IR/OpBase.td"
 
@@ -35,4 +35,4 @@ def Stream_Dialect : Dialect {
 class Stream_Op<string mnemonic, list<Trait> traits = []> :
         Op<Stream_Dialect, mnemonic, traits>;
 
-#endif // STREAM_DIALECT
+#endif // CIRCT_STREAM_DIALECT_STREAM_TD

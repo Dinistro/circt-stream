@@ -52,7 +52,7 @@ class StreamDialect;
 namespace standalone {
 // Generate the classes which represent the passes
 #define GEN_PASS_CLASSES
-#include "Standalone/Conversion/Passes.h.inc"
+#include "circt-stream/Conversion/Passes.h.inc"
 }  // namespace standalone
 
 }  // namespace mlir

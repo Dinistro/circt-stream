@@ -6,20 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE_CONVERSION_PASSES_H
-#define STANDALONE_CONVERSION_PASSES_H
+#ifndef CIRCT_STREAM_CONVERSION_PASSES_H
+#define CIRCT_STREAM_CONVERSION_PASSES_H
 
-#include "Standalone/Conversion/StreamToHandshake.h"
+#include "circt-stream/Conversion/StreamToHandshake.h"
 #include "mlir/Pass/PassRegistry.h"
 
 namespace mlir {
 namespace standalone {
 /// Generate the code for registering conversion passes.
 #define GEN_PASS_REGISTRATION
-#include "Standalone/Conversion/Passes.h.inc"
+#include "circt-stream/Conversion/Passes.h.inc"
 
 }  // namespace standalone
 }  // namespace mlir
 
-#endif  // STANDALONE_CONVERSION_PASSES_H
+#endif  // CIRCT_STREAM_CONVERSION_PASSES_H
 

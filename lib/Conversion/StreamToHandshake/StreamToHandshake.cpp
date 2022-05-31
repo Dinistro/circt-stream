@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/Conversion/StreamToHandshake.h"
+#include "circt-stream/Conversion/StreamToHandshake.h"
 
 #include <llvm/ADT/STLExtras.h>
 
 #include "../PassDetail.h"
-#include "Standalone/Dialect/Stream/StreamDialect.h"
-#include "Standalone/Dialect/Stream/StreamOps.h"
+#include "circt-stream/Dialect/Stream/StreamDialect.h"
+#include "circt-stream/Dialect/Stream/StreamOps.h"
 #include "circt/Conversion/StandardToHandshake.h"
 #include "circt/Dialect/Handshake/HandshakeDialect.h"
 #include "circt/Dialect/Handshake/HandshakeOps.h"

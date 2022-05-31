@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/Dialect/Stream/StreamDialect.h"
+#include "circt-stream/Dialect/Stream/StreamDialect.h"
 
-#include "Standalone/Dialect/Stream/StreamOps.h"
-#include "Standalone/Dialect/Stream/StreamTypes.h"
+#include "circt-stream/Dialect/Stream/StreamOps.h"
+#include "circt-stream/Dialect/Stream/StreamTypes.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "mlir/IR/DialectImplementation.h"
 
 using namespace mlir;
 using namespace mlir::stream;
 
-#include "Standalone/Dialect/Stream/StreamOpsDialect.cpp.inc"
+#include "circt-stream/Dialect/Stream/StreamOpsDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // Stream dialect.
@@ -25,13 +25,13 @@ using namespace mlir::stream;
 void StreamDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "Standalone/Dialect/Stream/StreamOps.cpp.inc"
+#include "circt-stream/Dialect/Stream/StreamOps.cpp.inc"
       >();
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "Standalone/Dialect/Stream/StreamOpsTypes.cpp.inc"
+#include "circt-stream/Dialect/Stream/StreamOpsTypes.cpp.inc"
       >();
 }
 
 #define GET_TYPEDEF_CLASSES
-#include "Standalone/Dialect/Stream/StreamOpsTypes.cpp.inc"
+#include "circt-stream/Dialect/Stream/StreamOpsTypes.cpp.inc"

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/Conversion/Passes.h"
-#include "Standalone/Dialect/Stream/StreamDialect.h"
+#include "circt-stream/Conversion/Passes.h"
+#include "circt-stream/Dialect/Stream/StreamDialect.h"
 #include "circt/InitAllDialects.h"
 #include "circt/InitAllPasses.h"
 #include "llvm/Support/CommandLine.h"

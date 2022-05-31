@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STREAM_OPS
-#define STREAM_OPS
+#ifndef CIRCT_STREAM_DIALECT_STREAM_OPS_TD
+#define CIRCT_STREAM_DIALECT_STREAM_OPS_TD
 
-include "Standalone/Dialect/Stream/StreamDialect.td"
-include "Standalone/Dialect/Stream/StreamTypes.td"
+include "circt-stream/Dialect/Stream/StreamDialect.td"
+include "circt-stream/Dialect/Stream/StreamTypes.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -197,4 +197,4 @@ def CreateOp : Stream_Op<"create", [
   let hasVerifier = 1;
 }
 
-#endif // STREAM_OPS
+#endif // CIRCT_STREAM_DIALECT_STREAM_OPS_TD
