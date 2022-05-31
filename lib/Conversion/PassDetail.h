@@ -39,23 +39,17 @@ class HandshakeDialect;
 }
 }  // namespace circt
 
-namespace mlir {
-
-namespace standalone {
-class StandaloneDialect;
-}
+namespace circt_stream {
 
 namespace stream {
 class StreamDialect;
 }
 
-namespace standalone {
 // Generate the classes which represent the passes
 #define GEN_PASS_CLASSES
 #include "circt-stream/Conversion/Passes.h.inc"
-}  // namespace standalone
 
-}  // namespace mlir
+}  // namespace circt_stream
 
 #endif  // CONVERSION_PASSDETAIL_H
 

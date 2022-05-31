@@ -78,9 +78,9 @@ int main(int argc, char** argv) {
   circt::handshake::registerPasses();
   circt::hw::registerPasses();
 
-  registry.insert<mlir::stream::StreamDialect>();
+  registry.insert<circt_stream::stream::StreamDialect>();
 
-  mlir::standalone::registerConversionPasses();
+  circt_stream::registerConversionPasses();
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "Stream optimizer driver\n", registry));

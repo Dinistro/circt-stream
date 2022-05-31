@@ -25,7 +25,7 @@ def Stream_Dialect : Dialect {
     let useDefaultTypePrinterParser = 1;
     //let useDefaultAttributePrinterParser = 1;
 
-    let cppNamespace = "::mlir::stream";
+    let cppNamespace = "::circt_stream::stream";
 }
 
 //===----------------------------------------------------------------------===//

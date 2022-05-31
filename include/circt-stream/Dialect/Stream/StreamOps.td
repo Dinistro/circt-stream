@@ -187,7 +187,7 @@ def CreateOp : Stream_Op<"create", [
   let results = (outs StreamType:$result);
 
   let extraClassDeclaration = [{
-    Type getElementType() {
+    ::mlir::Type getElementType() {
       return this->result().getType().dyn_cast<StreamType>().getElementType();
     }
   }];
