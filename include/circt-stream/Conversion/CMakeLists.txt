@@ -1,5 +1,5 @@
 set(LLVM_TARGET_DEFINITIONS Passes.td)
 mlir_tablegen(Passes.h.inc -gen-pass-decls -name Conversion)
-add_public_tablegen_target(StandaloneConversionPassIncGen)
+add_public_tablegen_target(CIRCTStreamConversionPassIncGen)
 
-add_mlir_doc(Passes -gen-pass-doc StandaloneConversionPasses ./)
+add_mlir_doc(Passes -gen-pass-doc CIRCTStreamConversionPasses ./)

@@ -10,8 +10,6 @@ set(LIBS
         MLIRSCF
         MLIRSCFToControlFlow
 
-        MLIRStream
-
         CIRCTAffineToStaticLogic
         CIRCTAnalysisTestPasses
         CIRCTExportVerilog
@@ -39,7 +37,8 @@ set(LIBS
         CIRCTSVTransforms
         CIRCTTransforms
 
-        StandaloneStreamToHandshake
+        CIRCTStreamStream
+        CIRCTStreamStreamToHandshake
         )
 add_llvm_executable(stream-opt stream-opt.cpp)
 
