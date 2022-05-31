@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STREAM_TYPES
-#define STREAM_TYPES
+#ifndef CIRCT_STREAM_DIALECT_STREAM_TYPES_TD
+#define CIRCT_STREAM_DIALECT_STREAM_TYPES_TD
 
 include "mlir/IR/AttrTypeBase.td"
-include "Standalone/Dialect/Stream/StreamDialect.td"
+include "circt-stream/Dialect/Stream/StreamDialect.td"
 
 class StreamDialect_Type<string name, string typeMnemonic, list<Trait> traits = []>
     : TypeDef<Stream_Dialect, name, traits> {
@@ -25,4 +25,4 @@ def StreamType : StreamDialect_Type<"Stream", "stream"> {
   let assemblyFormat = "`<` $elementType `>`";
 }
 
-#endif // STREAM_TYPES
+#endif // CIRCT_STREAM_DIALECT_STREAM_TYPES_TD

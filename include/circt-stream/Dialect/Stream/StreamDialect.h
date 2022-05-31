@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE_STREAMDIALECT_H
-#define STANDALONE_STREAMDIALECT_H
+#ifndef CIRCT_STREAM_DIALECT_STREAM_H
+#define CIRCT_STREAM_DIALECT_STREAM_H
 
 #include "mlir/IR/Dialect.h"
 // Do not remove, otherwise includes will be reorder and this breaks everything
-#include "Standalone/Dialect/Stream/StreamOpsDialect.h.inc"
+#include "circt-stream/Dialect/Stream/StreamOpsDialect.h.inc"
 
-#endif  // STANDALONE_STREAMDIALECT_H
+#endif  // CIRCT_STREAM_DIALECT_STREAM_H

@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/Dialect/Stream/StreamOps.h"
+#include "circt-stream/Dialect/Stream/StreamOps.h"
 
 #include <llvm/ADT/STLExtras.h>
 
-#include "Standalone/Dialect/Stream/StreamDialect.h"
-#include "Standalone/Dialect/Stream/StreamTypes.h"
+#include "circt-stream/Dialect/Stream/StreamDialect.h"
+#include "circt-stream/Dialect/Stream/StreamTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Support/LogicalResult.h"
 
 #define GET_OP_CLASSES
-#include "Standalone/Dialect/Stream/StreamOps.cpp.inc"
+#include "circt-stream/Dialect/Stream/StreamOps.cpp.inc"
 
 using namespace mlir;
 using namespace stream;

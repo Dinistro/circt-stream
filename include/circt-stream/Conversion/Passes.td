@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE_CONVERSION_PASSES_TD
-#define STANDALONE_CONVERSION_PASSES_TD
+#ifndef CIRCT_STREAM_CONVERSION_PASSES_TD
+#define CIRCT_STREAM_CONVERSION_PASSES_TD
 
 include "mlir/Pass/PassBase.td"
 
@@ -30,5 +30,5 @@ def StreamToHandshake : Pass<"convert-stream-to-handshake", "mlir::ModuleOp"> {
   ];
 }
 
-#endif // STANDALONE_CONVERSION_PASSES_TD
+#endif // CIRCT_STREAM_CONVERSION_PASSES_TD
 

@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE_CONVERSION_STREAMTOHANDSHAKE_H_
-#define STANDALONE_CONVERSION_STREAMTOHANDSHAKE_H_
+#ifndef CIRCT_STREAM_CONVERSION_STREAMTOHANDSHAKE_H_
+#define CIRCT_STREAM_CONVERSION_STREAMTOHANDSHAKE_H_
 
 #include <memory>
 
@@ -24,4 +24,4 @@ std::unique_ptr<mlir::Pass> createStreamToHandshakePass();
 }  // namespace stream
 
 }  // namespace mlir
-#endif  // STANDALONE_CONVERSION_STREAMTOHANDSHAKE_H_
+#endif  // CIRCT_STREAM_CONVERSION_STREAMTOHANDSHAKE_H_
