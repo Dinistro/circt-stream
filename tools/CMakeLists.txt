@@ -40,7 +40,6 @@ set(LIBS
         CIRCTSVTransforms
         CIRCTTransforms
 
-        StandaloneStandaloneToScf
         StandaloneStreamToHandshake
         )
 add_llvm_executable(stream-opt stream-opt.cpp)

@@ -1,2 +1,1 @@
-add_subdirectory(StandaloneToScf)
 add_subdirectory(StreamToHandshake)
