@@ -6,6 +6,7 @@
 // RUN:   --handshake-insert-buffers=strategy=all --lower-handshake-to-firrtl | \
 // RUN: firtool --format=mlir --verilog > %reduce-export.sv
 // RUN: circt-rtl-sim.py %reduce-export.sv %S/driverI64I1.sv --sim %ieee-sim --no-default-driver --top driver | FileCheck %s
+// CHECK: ## run -all 
 // CHECK:      Element={{.*}}6
 // CHECK-NEXT: EOS
 

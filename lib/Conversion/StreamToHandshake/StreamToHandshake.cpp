@@ -124,23 +124,6 @@ static Value getCtrlSignal(ValueRange operands) {
   return getCtrlSignal(op->getOperands());
 }
 
-/// Searches the EOS signal corresponding to the operand
-static Value getEOSSignal(Value operand) {
-  if (auto arg = operand.dyn_cast<BlockArgument>()) {
-    Block *block = arg.getParentBlock();
-    unsigned argNum = arg.getArgNumber() + 1;
-    assert(argNum < block->getNumArguments());
-    return block->getArgument(argNum);
-  }
-
-  auto res = operand.dyn_cast<OpResult>();
-  Operation *defOp = res.getDefiningOp();
-
-  unsigned resNum = res.getResultNumber() + 1;
-  assert(resNum < defOp->getNumResults());
-  return defOp->getResult(resNum);
-}
-
 struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
   using OpConversionPattern<func::ReturnOp>::OpConversionPattern;
 
@@ -213,37 +196,6 @@ static void replaceWithInstance(Operation *op, FuncOp func,
 
   // The ctrl and EOS signal has to be ignored
   rewriter.replaceOp(op, instance.getResults().front());
-}
-
-static void collectOperandsAndSignature(SmallVectorImpl<Value> &newOperands,
-                                        ValueRange adaptorOperands,
-                                        TypeRange oldTypes,
-                                        TypeConverter::SignatureConversion &sig,
-                                        MLIRContext *ctx,
-                                        unsigned sigOffset = 0) {
-  assert(adaptorOperands.size() == oldTypes.size());
-  IntegerType i1Type = IntegerType::get(ctx, 1);
-
-  for (auto it : llvm::enumerate(llvm::zip(adaptorOperands, oldTypes))) {
-    size_t i = it.index() + sigOffset;
-    auto [operand, oldType] = it.value();
-
-    newOperands.push_back(operand);
-
-    // Collect new input types
-    sig.addInputs(i, operand.getType());
-
-    // Add EOS signals for al stream inputs
-    if (oldType.isa<StreamType>()) {
-      sig.addInputs(i1Type);
-
-      newOperands.push_back(getEOSSignal(operand));
-    }
-  }
-
-  // add missing NoneType
-  sig.addInputs(adaptorOperands.size() + sigOffset, NoneType::get(ctx));
-  newOperands.push_back(getCtrlSignal(adaptorOperands));
 }
 
 // Usual flow:
@@ -396,32 +348,42 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
   LogicalResult matchAndRewrite(
       ReduceOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
     Region &r = op.getRegion();
     StreamLowering sl(r);
     if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     TypeConverter *typeConverter = getTypeConverter();
-    Type resultType = typeConverter->convertType(op.res().getType());
+    Type tupleType = typeConverter->convertType(op.res().getType());
+    assert(tupleType.isa<TupleType>());
+    Type resultType = tupleType.dyn_cast<TupleType>().getType(0);
 
     // TODO: handshake currently only supports i64 buffers, change this as
     // soon as support for other types is added.
     assert(resultType == rewriter.getI64Type() &&
            "currently, only i64 buffers are supported");
 
-    SmallVector<Value> operands;
     TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 2);
     sig.addInputs(0, resultType);
+    if (failed(
+            typeConverter->convertSignatureArgs(op->getOperandTypes(), sig, 1)))
+      return failure();
 
-    // Signature is incompatible with the amount of operands, thus offset of 1
-    collectOperandsAndSignature(operands, adaptor.getOperands(),
-                                op->getOperandTypes(), sig,
-                                rewriter.getContext(), 1);
+    //  add the ctrl input
+    sig.addInputs(adaptor.getOperands().size() + 1, rewriter.getNoneType());
 
     Block *entryBlock =
         rewriter.applySignatureConversion(&r, sig, typeConverter);
-    // Block *entryBlock = &r.front();
-    Operation *oldTerm = entryBlock->getTerminator();
+
+    BlockArgument tupleIn = entryBlock->getArgument(1);
     rewriter.setInsertionPointToStart(entryBlock);
+    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+    Value input = unpack.getResult(0);
+    Value eosIn = unpack.getResult(1);
+    rewriter.replaceUsesOfBlockArgument(tupleIn, input);
+
+    Operation *oldTerm = entryBlock->getTerminator();
+    rewriter.setInsertionPoint(oldTerm);
     auto buffer = rewriter.create<handshake::BufferOp>(
         rewriter.getUnknownLoc(), resultType, 1, oldTerm->getOperand(0),
         BufferTypeEnum::seq);
@@ -431,7 +393,6 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
     buffer->setAttr("initValues",
                     rewriter.getI64ArrayAttr({(int64_t)adaptor.initValue()}));
 
-    Value eosIn = entryBlock->getArgument(2);
     assert(eosIn.getType() == rewriter.getI1Type());
 
     auto dataBr = rewriter.create<handshake::ConditionalBranchOp>(
@@ -441,42 +402,48 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
     auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
         rewriter.getUnknownLoc(), eosIn, oldTerm->getOperand(1));
 
-    // A sequental buffer ensures a cycle delay of 1
-    auto eosBuf = rewriter.create<handshake::BufferOp>(
-        rewriter.getUnknownLoc(), rewriter.getI1Type(), 1, eosBr.trueResult(),
-        BufferTypeEnum::seq);
-    // The circuit has to emit EOS = 0 when producing the result
-    auto eosFalse = rewriter.create<handshake::ConstantOp>(
-        rewriter.getUnknownLoc(),
-        rewriter.getIntegerAttr(rewriter.getI1Type(), 0), ctrlBr.trueResult());
-
-    auto eosOut = rewriter.create<handshake::MergeOp>(
-        rewriter.getUnknownLoc(),
-        ValueRange({eosBuf.getResult(), eosFalse.getResult()}));
-
-    auto ctrlBuf = rewriter.create<handshake::BufferOp>(
-        rewriter.getUnknownLoc(), rewriter.getNoneType(), 1,
-        ctrlBr.trueResult(), BufferTypeEnum::seq);
-
-    // Ensures that an additional ctrl signal is emited with EOS = true
-    auto ctrlOut = rewriter.create<handshake::MergeOp>(
-        rewriter.getUnknownLoc(),
-        ValueRange({ctrlBuf.getResult(), ctrlBr.trueResult()}));
-
     rewriter.replaceUsesOfBlockArgument(entryBlock->getArgument(0),
                                         dataBr.falseResult());
     entryBlock->eraseArgument(0);
 
-    SmallVector<Value> newTermOperands = {dataBr.trueResult(), eosOut, ctrlOut};
+    // Connect outputs and ensure correct delay between value and EOS=true
+    // emission A sequental buffer ensures a cycle delay of 1
+    auto eosFalse = rewriter.create<handshake::ConstantOp>(
+        rewriter.getUnknownLoc(),
+        rewriter.getIntegerAttr(rewriter.getI1Type(), 0), ctrlBr.trueResult());
+    auto tupleOutVal = rewriter.create<handshake::PackOp>(
+        loc, ValueRange({dataBr.trueResult(), eosFalse}));
 
-    rewriter.setInsertionPoint(oldTerm);
+    auto tupleOutEOS = rewriter.create<handshake::PackOp>(
+        loc, ValueRange({dataBr.trueResult(), eosBr.trueResult()}));
+
+    // Not really needed, but the BufferOp builder requires an input
+    auto bubble = rewriter.create<ConstantOp>(
+        loc, rewriter.getIntegerAttr(rewriter.getI1Type(), 0),
+        ctrlBr.trueResult());
+    auto select = rewriter.create<handshake::BufferOp>(
+        rewriter.getUnknownLoc(), rewriter.getI32Type(), 2, bubble,
+        BufferTypeEnum::seq);
+    // First select the tupleOut, afterwards the one with the EOS signal
+    select->setAttr("initValues", rewriter.getI64ArrayAttr({1, 0}));
+
+    auto tupleOut = rewriter.create<MuxOp>(
+        loc, select, ValueRange({tupleOutVal, tupleOutEOS}));
+    auto ctrlOut = rewriter.create<MuxOp>(
+        loc, select, ValueRange({ctrlBr.trueResult(), ctrlBr.trueResult()}));
+
+    SmallVector<Value> newTermOperands = {tupleOut, ctrlOut};
+
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
-    TypeRange resTypes = newTerm.getOperandTypes();
+    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
+    operands.push_back(getCtrlSignal(adaptor.getOperands()));
+
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp = createFuncOp(
-        r, getFuncName(op), entryBlock->getArgumentTypes(), resTypes, rewriter);
+    FuncOp newFuncOp =
+        createFuncOp(r, getFuncName(op), entryBlock->getArgumentTypes(),
+                     newTerm.getOperandTypes(), rewriter);
 
     replaceWithInstance(op, newFuncOp, operands, rewriter);
     return success();
