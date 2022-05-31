@@ -198,6 +198,16 @@ static void replaceWithInstance(Operation *op, FuncOp func,
   rewriter.replaceOp(op, instance.getResults().front());
 }
 
+static handshake::UnpackOp unpackAndReplace(
+    BlockArgument arg, Location loc, ConversionPatternRewriter &rewriter) {
+  assert(arg.getType().isa<TupleType>() && "can only unpack tuple types");
+  Block *block = arg.getOwner();
+  rewriter.setInsertionPointToStart(block);
+  auto unpack = rewriter.create<handshake::UnpackOp>(loc, arg);
+  rewriter.replaceUsesOfBlockArgument(arg, unpack.getResult(0));
+  return unpack;
+}
+
 // Usual flow:
 // 1. Apply lowerRegion from StdToHandshake
 // 2. Collect operands
@@ -231,12 +241,7 @@ struct MapOpLowering : public OpConversionPattern<MapOp> {
     Block *entryBlock =
         rewriter.applySignatureConversion(&r, sig, typeConverter);
 
-    // Add unpack op
-    rewriter.setInsertionPointToStart(entryBlock);
-    // TODO this is a hardcoded number, I do not like it.
-    BlockArgument tupleIn = entryBlock->getArgument(0);
-    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
-    rewriter.replaceUsesOfBlockArgument(tupleIn, unpack.getResult(0));
+    auto unpack = unpackAndReplace(entryBlock->getArgument(0), loc, rewriter);
     Value eos = unpack.getResult(1);
 
     Operation *oldTerm = entryBlock->getTerminator();
@@ -289,12 +294,9 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
     Block *entryBlock =
         rewriter.applySignatureConversion(&r, sig, typeConverter);
 
-    BlockArgument tupleIn = entryBlock->getArgument(0);
-    rewriter.setInsertionPointToStart(entryBlock);
-    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+    auto unpack = unpackAndReplace(entryBlock->getArgument(0), loc, rewriter);
     Value input = unpack.getResult(0);
     Value eos = unpack.getResult(1);
-    rewriter.replaceUsesOfBlockArgument(tupleIn, input);
 
     Operation *oldTerm = entryBlock->getTerminator();
 
@@ -375,12 +377,8 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
     Block *entryBlock =
         rewriter.applySignatureConversion(&r, sig, typeConverter);
 
-    BlockArgument tupleIn = entryBlock->getArgument(1);
-    rewriter.setInsertionPointToStart(entryBlock);
-    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
-    Value input = unpack.getResult(0);
+    auto unpack = unpackAndReplace(entryBlock->getArgument(1), loc, rewriter);
     Value eosIn = unpack.getResult(1);
-    rewriter.replaceUsesOfBlockArgument(tupleIn, input);
 
     Operation *oldTerm = entryBlock->getTerminator();
     rewriter.setInsertionPoint(oldTerm);
