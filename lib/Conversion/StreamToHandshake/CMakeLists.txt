@@ -1,8 +1,8 @@
-add_mlir_library(StandaloneStreamToHandshake
+add_mlir_library(CIRCTStreamStreamToHandshake
     StreamToHandshake.cpp
 
   DEPENDS
-  StandaloneConversionPassIncGen
+  CIRCTStreamConversionPassIncGen
 
   LINK_LIBS PUBLIC
   MLIRIR
