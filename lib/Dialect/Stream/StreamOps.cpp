@@ -71,7 +71,7 @@ void PackOp::print(OpAsmPrinter &p) {
 }
 
 ParseResult CreateOp::parse(OpAsmParser &parser, OperationState &result) {
-  parser.parseOptionalAttrDict(result.attributes);
+  if (failed(parser.parseOptionalAttrDict(result.attributes))) return failure();
 
   StreamType type;
   if (parser.parseType(type)) return failure();
