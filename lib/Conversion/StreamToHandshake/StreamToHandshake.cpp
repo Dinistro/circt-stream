@@ -20,10 +20,13 @@
 #include "circt/Conversion/StandardToHandshake.h"
 #include "circt/Dialect/Handshake/HandshakeDialect.h"
 #include "circt/Dialect/Handshake/HandshakeOps.h"
+#include "circt/Support/SymCache.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -34,6 +37,48 @@ using namespace circt_stream;
 using namespace circt_stream::stream;
 
 namespace {
+
+/// Returns a name resulting from an operation, without discriminating
+/// type information.
+static std::string getBareOpName(Operation *op) {
+  std::string name = op->getName().getStringRef().str();
+  std::replace(name.begin(), name.end(), '.', '_');
+  return name;
+}
+
+/// Helper class that provides functionality for creating unique symbol names.
+/// One instance is shared among all patterns.
+class SymbolUniquer : public SymbolCache {
+ public:
+  SymbolUniquer(Operation *top) : context(top->getContext()) {
+    addDefinitions(top);
+  }
+
+  mlir::Operation *getDefinition(StringRef str) const {
+    auto attr = StringAttr::get(context, str);
+    return SymbolCache::getDefinition(attr);
+  }
+
+  // TODO: does this have to be thread save?
+  std::string getUniqueSymName(Operation *op) {
+    std::string opName = getBareOpName(op);
+    std::string name = opName;
+
+    unsigned cnt = 1;
+    while (getDefinition(name)) {
+      name = llvm::formatv("{0}_{1}", opName, cnt++);
+    }
+    // Note: We do not add the actual op matching the symbol
+    auto attr = StringAttr::get(context, name);
+    // TODO: dropping the `SymbolCache::` causes a segfault -> investigate
+    SymbolCache::addDefinition(attr, op);
+
+    return name;
+  }
+
+ private:
+  MLIRContext *context;
+};
 
 class StreamTypeConverter : public TypeConverter {
  public:
@@ -148,21 +193,6 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
   }
 };
 
-/// Returns a name resulting from an operation, without discriminating
-/// type information.
-static std::string getBareOpName(Operation *op) {
-  std::string name = op->getName().getStringRef().str();
-  std::replace(name.begin(), name.end(), '.', '_');
-  return name;
-}
-
-static std::string getFuncName(Operation *op) {
-  std::string opName = getBareOpName(op);
-  // TODO add unique
-  // Look into the factility CIRCT provides
-  return opName;
-}
-
 static Block *getTopLevelBlock(Operation *op) {
   return &op->getParentOfType<ModuleOp>().getRegion().front();
 }
@@ -216,10 +246,20 @@ static handshake::UnpackOp unpackAndReplace(
 // 5. Change parts of the lowered Region to fit the operations needs.
 // 6. Create function and replace operation with InstanceOp
 
+template <typename Op>
+struct StreamOpLowering : public OpConversionPattern<Op> {
+  StreamOpLowering(TypeConverter &typeConverter, MLIRContext *ctx,
+                   SymbolUniquer &symbolUniquer)
+      : OpConversionPattern<Op>(typeConverter, ctx),
+        symbolUniquer(symbolUniquer) {}
+
+  SymbolUniquer &symbolUniquer;
+};
+
 // Builds a handshake::FuncOp and that represents the mapping funtion. This
 // function is then instantiated and connected to its inputs and outputs.
-struct MapOpLowering : public OpConversionPattern<MapOp> {
-  using OpConversionPattern<MapOp>::OpConversionPattern;
+struct MapOpLowering : public StreamOpLowering<MapOp> {
+  using StreamOpLowering::StreamOpLowering;
 
   LogicalResult matchAndRewrite(
       MapOp op, OpAdaptor adaptor,
@@ -261,8 +301,9 @@ struct MapOpLowering : public OpConversionPattern<MapOp> {
     operands.push_back(getCtrlSignal(adaptor.getOperands()));
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp = createFuncOp(
-        r, getFuncName(op), entryBlock->getArgumentTypes(), resTypes, rewriter);
+    FuncOp newFuncOp =
+        createFuncOp(r, symbolUniquer.getUniqueSymName(op),
+                     entryBlock->getArgumentTypes(), resTypes, rewriter);
 
     replaceWithInstance(op, newFuncOp, operands, rewriter);
 
@@ -270,8 +311,8 @@ struct MapOpLowering : public OpConversionPattern<MapOp> {
   }
 };
 
-struct FilterOpLowering : public OpConversionPattern<FilterOp> {
-  using OpConversionPattern<FilterOp>::OpConversionPattern;
+struct FilterOpLowering : public StreamOpLowering<FilterOp> {
+  using StreamOpLowering::StreamOpLowering;
 
   LogicalResult matchAndRewrite(
       FilterOp op, OpAdaptor adaptor,
@@ -328,9 +369,9 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
     operands.push_back(getCtrlSignal(adaptor.getOperands()));
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp =
-        createFuncOp(r, getFuncName(op), entryBlock->getArgumentTypes(),
-                     newTerm.getOperandTypes(), rewriter);
+    FuncOp newFuncOp = createFuncOp(r, symbolUniquer.getUniqueSymName(op),
+                                    entryBlock->getArgumentTypes(),
+                                    newTerm.getOperandTypes(), rewriter);
 
     replaceWithInstance(op, newFuncOp, operands, rewriter);
     return success();
@@ -344,8 +385,8 @@ struct FilterOpLowering : public OpConversionPattern<FilterOp> {
 /// result.
 ///
 /// While the reduction is running, no output is produced.
-struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
-  using OpConversionPattern<ReduceOp>::OpConversionPattern;
+struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
+  using StreamOpLowering::StreamOpLowering;
 
   LogicalResult matchAndRewrite(
       ReduceOp op, OpAdaptor adaptor,
@@ -439,9 +480,9 @@ struct ReduceOpLowering : public OpConversionPattern<ReduceOp> {
     operands.push_back(getCtrlSignal(adaptor.getOperands()));
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp =
-        createFuncOp(r, getFuncName(op), entryBlock->getArgumentTypes(),
-                     newTerm.getOperandTypes(), rewriter);
+    FuncOp newFuncOp = createFuncOp(r, symbolUniquer.getUniqueSymName(op),
+                                    entryBlock->getArgumentTypes(),
+                                    newTerm.getOperandTypes(), rewriter);
 
     replaceWithInstance(op, newFuncOp, operands, rewriter);
     return success();
@@ -472,8 +513,8 @@ struct UnpackOpLowering : public OpConversionPattern<stream::UnpackOp> {
   }
 };
 
-struct CreateOpLowering : public OpConversionPattern<stream::CreateOp> {
-  using OpConversionPattern<stream::CreateOp>::OpConversionPattern;
+struct CreateOpLowering : public StreamOpLowering<CreateOp> {
+  using StreamOpLowering::StreamOpLowering;
 
   // TODO add location usage
   LogicalResult matchAndRewrite(
@@ -555,8 +596,8 @@ struct CreateOpLowering : public OpConversionPattern<stream::CreateOp> {
     argTypes.push_back(rewriter.getNoneType());
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    auto newFuncOp = createFuncOp(r, getFuncName(op), argTypes,
-                                  term.getOperandTypes(), rewriter);
+    auto newFuncOp = createFuncOp(r, symbolUniquer.getUniqueSymName(op),
+                                  argTypes, term.getOperandTypes(), rewriter);
 
     replaceWithInstance(op, newFuncOp, {getBlockCtrlSignal(op->getBlock())},
                         rewriter);
@@ -565,18 +606,22 @@ struct CreateOpLowering : public OpConversionPattern<stream::CreateOp> {
 };
 
 static void populateStreamToHandshakePatterns(
-    StreamTypeConverter &typeConverter, RewritePatternSet &patterns) {
+    StreamTypeConverter &typeConverter, SymbolUniquer symbolUniquer,
+    RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
     FuncOpLowering,
     ReturnOpLowering,
+    PackOpLowering,
+    UnpackOpLowering
+  >(typeConverter, patterns.getContext());
+
+  patterns.add<
     MapOpLowering,
     FilterOpLowering,
     ReduceOpLowering,
-    PackOpLowering,
-    UnpackOpLowering,
     CreateOpLowering
-  >(typeConverter, patterns.getContext());
+  >(typeConverter, patterns.getContext(), symbolUniquer);
   // clang-format on
 }
 
@@ -602,9 +647,10 @@ class StreamToHandshakePass
     StreamTypeConverter typeConverter;
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
+    SymbolUniquer symbolUniquer(getOperation());
 
     // Patterns to lower stream dialect operations
-    populateStreamToHandshakePatterns(typeConverter, patterns);
+    populateStreamToHandshakePatterns(typeConverter, symbolUniquer, patterns);
     target.addLegalOp<ModuleOp>();
     target.addLegalDialect<handshake::HandshakeDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
