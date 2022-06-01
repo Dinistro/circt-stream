@@ -18,7 +18,9 @@ cmake -G Ninja .. \
     -DLLVM_DIR=$LLVM_BUILD/lib/cmake/llvm \
     -DMLIR_DIR=$LLVM_BUILD/lib/cmake/mlir \
     -DCIRCT_DIR=$CIRCT_BUILD/lib/cmake/circt \
-    -DLLVM_EXTERNAL_LIT=$LLVM_BUILD/bin/llvm-lit
+    -DLLVM_EXTERNAL_LIT=$LLVM_BUILD/bin/llvm-lit \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=DEBUG
 ninja
 ```
 
