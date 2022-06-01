@@ -16,38 +16,6 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 
-def MinOp : Stream_Op<"min", [NoSideEffect,
-        TypesMatchWith<"result type matches element type of 'stream'",
-                     "input", "res",
-                     "$_self.cast<StreamType>().getElementType()">]> {
-    let summary = "Extracts the minimum of a finite stream.";
-    let description = [{
-        TODO
-    }];
-
-    let arguments = (ins StreamType:$input);
-    let results = (outs AnyType:$res);
-
-    let assemblyFormat = [{
-        `(` $input `)` attr-dict `:` functional-type($input, $res)
-    }];
-}
-
-def MinContinuousOp : Stream_Op<"min_continuous", [NoSideEffect, SameOperandsAndResultType]> {
-    let summary = "Extracts the minimum of a finite stream.";
-    let description = [{
-        The MinContinuous operation keeps track of the minimal value encountered
-        so far by emit it continuously.
-    }];
-
-    let arguments = (ins StreamType:$input);
-    let results = (outs StreamType:$res);
-
-    let assemblyFormat = [{
-        `(` $input `)` attr-dict `:` functional-type($input, $res)
-    }];
-}
-
 // TODO: carefull with dependencies between elements
 // TODO: add stronger verification constraints
 def MapOp : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
