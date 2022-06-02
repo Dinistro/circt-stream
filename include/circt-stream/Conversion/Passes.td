@@ -26,6 +26,7 @@ def StreamToHandshake : Pass<"convert-stream-to-handshake", "mlir::ModuleOp"> {
     "circt_stream::stream::StreamDialect",
     "mlir::cf::ControlFlowDialect",
     "mlir::func::FuncDialect",
+    "mlir::memref::MemRefDialect",
     "circt::handshake::HandshakeDialect"
   ];
 }

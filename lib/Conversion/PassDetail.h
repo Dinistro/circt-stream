@@ -10,6 +10,7 @@
 #ifndef CONVERSION_PASSDETAIL_H
 #define CONVERSION_PASSDETAIL_H
 
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/Pass/Pass.h"
@@ -31,6 +32,10 @@ namespace func {
 class FuncDialect;
 class FuncOp;
 }  // namespace func
+
+namespace memref {
+class MemRefDialect;
+}
 }  // namespace mlir
 
 namespace circt {
