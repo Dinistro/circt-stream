@@ -266,8 +266,6 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
       ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Region &r = op.getRegion();
-    StreamLowering sl(r);
-    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     TypeConverter *typeConverter = getTypeConverter();
     TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
@@ -319,8 +317,6 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
       ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Region &r = op.getRegion();
-    StreamLowering sl(r);
-    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     TypeConverter *typeConverter = getTypeConverter();
     TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
@@ -393,8 +389,6 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
       ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Region &r = op.getRegion();
-    StreamLowering sl(r);
-    if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
 
     TypeConverter *typeConverter = getTypeConverter();
     Type tupleType = typeConverter->convertType(op.res().getType());
@@ -640,10 +634,34 @@ static LogicalResult materializeForksAndSinks(ModuleOp m) {
   return success();
 }
 
+bool isStreamOp(Operation *op) { return isa<MapOp, FilterOp, ReduceOp>(op); }
+
+/// Traverses the modules region recursively and applies the std to handshake
+/// conversion on each stream operation region.
+LogicalResult transformStdRegions(ModuleOp m) {
+  // go over all stream ops and transform their regions
+  for (auto funcOp : llvm::make_early_inc_range(m.getOps<func::FuncOp>())) {
+    if (funcOp.isDeclaration()) continue;
+    Region *funcRegion = funcOp.getCallableRegion();
+    for (Operation &op : funcRegion->getOps()) {
+      if (!isStreamOp(&op)) continue;
+      for (auto &r : op.getRegions()) {
+        StreamLowering sl(r);
+        if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
+      }
+    }
+  }
+  return success();
+}
+
 class StreamToHandshakePass
     : public StreamToHandshakeBase<StreamToHandshakePass> {
  public:
   void runOnOperation() override {
+    if (failed(transformStdRegions(getOperation()))) {
+      signalPassFailure();
+      return;
+    }
     StreamTypeConverter typeConverter;
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
