@@ -177,10 +177,6 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
       ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
 
-    // TODO not sure if this is still the case
-    assert(operands.size() == 1 &&
-           "currently multiple streams are not supported");
-
     // return block arg ctrl signal if nothing else has to be returned
     if (adaptor.getOperands().size() == 0) {
       Value ctrl = op->getBlock()->getArguments().back();
