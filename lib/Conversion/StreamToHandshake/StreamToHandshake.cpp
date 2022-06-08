@@ -220,8 +220,8 @@ static void replaceWithInstance(Operation *op, FuncOp func,
   InstanceOp instance =
       rewriter.create<InstanceOp>(op->getLoc(), func, newOperands);
 
-  // The ctrl and EOS signal has to be ignored
-  rewriter.replaceOp(op, instance.getResults().front());
+  // The ctrl signal has to be ignored
+  rewriter.replaceOp(op, instance.getResults().drop_back());
 }
 
 static handshake::UnpackOp unpackAndReplace(
@@ -595,6 +595,61 @@ struct CreateOpLowering : public StreamOpLowering<CreateOp> {
   }
 };
 
+struct SplitOpLowering : public StreamOpLowering<SplitOp> {
+  using StreamOpLowering::StreamOpLowering;
+
+  LogicalResult matchAndRewrite(
+      SplitOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Region &r = op.getRegion();
+
+    TypeConverter *typeConverter = getTypeConverter();
+    TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
+
+    if (failed(typeConverter->convertSignatureArgs(op->getOperandTypes(), sig)))
+      return failure();
+
+    //  add the ctrl input
+    sig.addInputs(adaptor.getOperands().size(), rewriter.getNoneType());
+
+    Block *entryBlock =
+        rewriter.applySignatureConversion(&r, sig, typeConverter);
+
+    auto unpack = unpackAndReplace(entryBlock->getArgument(0), loc, rewriter);
+    Value eos = unpack.getResult(1);
+
+    Operation *oldTerm = entryBlock->getTerminator();
+
+    rewriter.setInsertionPoint(oldTerm);
+    SmallVector<Value> newTermOperands = llvm::to_vector(
+        llvm::map_range(oldTerm->getOperands().drop_back(), [&](auto oldOp) {
+          return rewriter
+              .create<handshake::PackOp>(oldTerm->getLoc(),
+                                         ValueRange({oldOp, eos}))
+              .getResult();
+        }));
+
+    newTermOperands.push_back(oldTerm->getOperands().back());
+    auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
+        oldTerm, newTermOperands);
+
+    TypeRange resTypes = newTerm->getOperandTypes();
+
+    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
+    operands.push_back(getCtrlSignal(adaptor.getOperands()));
+
+    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
+    FuncOp newFuncOp =
+        createFuncOp(r, symbolUniquer.getUniqueSymName(op),
+                     entryBlock->getArgumentTypes(), resTypes, rewriter);
+
+    replaceWithInstance(op, newFuncOp, operands, rewriter);
+
+    return success();
+  }
+};
+
 static void populateStreamToHandshakePatterns(
     StreamTypeConverter &typeConverter, SymbolUniquer symbolUniquer,
     RewritePatternSet &patterns) {
@@ -610,7 +665,8 @@ static void populateStreamToHandshakePatterns(
     MapOpLowering,
     FilterOpLowering,
     ReduceOpLowering,
-    CreateOpLowering
+    CreateOpLowering,
+    SplitOpLowering
   >(typeConverter, patterns.getContext(), symbolUniquer);
   // clang-format on
 }
@@ -630,7 +686,10 @@ static LogicalResult materializeForksAndSinks(ModuleOp m) {
   return success();
 }
 
-bool isStreamOp(Operation *op) { return isa<MapOp, FilterOp, ReduceOp>(op); }
+// TODO Do this with an op trait?
+bool isStreamOp(Operation *op) {
+  return isa<MapOp, FilterOp, ReduceOp, SplitOp>(op);
+}
 
 /// Traverses the modules region recursively and applies the std to handshake
 /// conversion on each stream operation region.
