@@ -3,7 +3,7 @@
 // RUN:   --canonicalize='top-down=true region-simplify=true' \
 // RUN:   --handshake-materialize-forks-sinks --canonicalize \
 // RUN:   --handshake-insert-buffers=strategy=all --lower-handshake-to-firrtl | \
-// RUN: firtool --format=mlir --verilog > %\split-export.sv
+// RUN: firtool --format=mlir --verilog > %\split-export.sv && \
 // RUN: circt-rtl-sim.py %\split-export.sv %S/driver_out_i64_i64.sv --sim %ieee-sim --no-default-driver --top driver | FileCheck %s
 // CHECK:     ## run -all
 // CHECK-DAG: S0: Element={{.*}}1
