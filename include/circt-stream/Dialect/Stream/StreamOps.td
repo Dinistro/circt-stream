@@ -117,7 +117,7 @@ def PackOp : Stream_Op<"pack", [
 }
 
 def YieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               ParentOneOf<["MapOp, FilterOp, ReduceOp"]>]> {
+                               ParentOneOf<["MapOp, FilterOp, ReduceOp, SplitOp"]>]> {
   let summary = "stream yield and termination operation";
   let description = [{
     "stream.yield" yields an SSA value from the steam dialect op region and
@@ -159,6 +159,34 @@ def CreateOp : Stream_Op<"create", [
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+}
+
+def SplitOp : Stream_Op<"split", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
+  let summary = "for each input produces outputs for each output stream.";
+  let description = [{
+    "stream.split" takes one input stream and produces multiple output streams.
+    For each input element, each output stream expects an element. The exact
+    splitting is implemented in a region.
+
+    Example:
+    ```mlir
+    %res0, %res1 = stream.split(%in) : (!stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+    ^0(%val: tuple<i32, i32>):
+      %0, %1 = stream.unpack %val : tuple<i32, i32>
+      stream.yield %0, %1 : i32, i32
+    }
+    ```
+    }];
+
+  let arguments = (ins StreamType:$input);
+  let results = (outs Variadic<StreamType>:$results);
+  let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = [{
+      `(` $input `)` attr-dict `:` functional-type($input, $results) $region
+  }];
+
+  let hasRegionVerifier = 1;
 }
 
 #endif // CIRCT_STREAM_DIALECT_STREAM_OPS_TD

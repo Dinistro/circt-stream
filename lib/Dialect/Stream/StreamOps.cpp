@@ -137,3 +137,31 @@ LogicalResult CreateOp::verify() {
   // TODO ensure that all array elements have the same type
   return success();
 }
+
+LogicalResult SplitOp::verifyRegions() {
+  Region &r = region();
+  // Check arguments
+  if (r.getNumArguments() != 1)
+    return emitOpError("expect region to have exactly one argument.");
+
+  Type elementType = input().getType().cast<StreamType>().getElementType();
+  Type argType = r.getArgument(0).getType();
+  if (argType != elementType)
+    return emitOpError("expect the block argument to have type ")
+           << elementType << ", got " << argType << " instead.";
+
+  // Check terminator
+  auto returnTypes = llvm::map_range(getResultTypes(), [](Type t) {
+    return t.cast<StreamType>().getElementType();
+  });
+  for (auto term : r.getOps<YieldOp>()) {
+    if (term.getNumOperands() != getNumResults())
+      return term.emitError("expect ")
+             << getNumResults() << " operands, got " << term.getNumOperands();
+    if (term.getOperandTypes() != returnTypes)
+      return term.emitError(
+          "expect the return types to match the types of the output streams");
+  }
+
+  return success();
+}
