@@ -19,7 +19,9 @@ def Stream_Dialect : Dialect {
     let name = "stream";
     let summary = "A dialect for stream processing.";
     let description = [{
-        TODO
+      The stream dialect provides a streaming abstraction that was designed
+      to be lowered to hardware. It includes operations to work with streams
+      and helpers that are used to process stream elements.
     }];
 
     let useDefaultTypePrinterParser = 1;

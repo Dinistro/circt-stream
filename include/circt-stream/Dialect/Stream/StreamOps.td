@@ -16,56 +16,91 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 
-// TODO: carefull with dependencies between elements
 // TODO: add stronger verification constraints
 def MapOp : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
-    let summary = "Executes the region on each element";
-    let description = [{
-        TODO
-    }];
+  let summary = "applies the region on each element";
+  let description = [{
+    `stream.map` applies the provided region on each element of the input
+    stream.
+    The result will be emitted on the output stream.
 
-    let arguments = (ins StreamType:$input);
-    let results = (outs StreamType:$res);
-    let regions = (region AnyRegion:$region);
+    Example:
+    ```mlir
+    %res = stream.map(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
+    ^0(%val : i32):
+      %0 = arith.constant 1 : i32
+      %r = arith.addi %0, %val : i32
+      stream.yield %r : i32
+    }
+    ```
+  }];
 
-    let assemblyFormat = [{
-        `(` $input `)` attr-dict `:` functional-type($input, $res) $region
-    }];
+  let arguments = (ins StreamType:$input);
+  let results = (outs StreamType:$res);
+  let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = [{
+    `(` $input `)` attr-dict `:` functional-type($input, $res) $region
+  }];
 }
 
 // TODO: add stronger verification constraints
 def FilterOp : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
-    let summary = "Executes the region to check if an element should be preserved in the out stream";
-    let description = [{
-        TODO
-    }];
+  let summary = "filters a stream with the provided predicate";
+  let description = [{
+    `stream.filter` applies the provided region on each element of the input
+    stream.
+    If the result is true/1, then the input element is forwarded to the output,
+    otherwise it's dropped.
 
-    let arguments = (ins StreamType:$input);
-    let results = (outs StreamType:$res);
-    let regions = (region AnyRegion:$region);
+    Example:
+    ```mlir
+    %out = stream.filter(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
+    ^bb0(%val: i32):
+      %c0_i32 = arith.constant 0 : i32
+      %0 = arith.cmpi sgt, %val, %c0_i32 : i32
+      stream.yield %0 : i1
+    }
+    ```
+  }];
 
-    let assemblyFormat = [{
-        `(` $input `)` attr-dict `:` functional-type($input, $res) $region
-    }];
+  let arguments = (ins StreamType:$input);
+  let results = (outs StreamType:$res);
+  let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = [{
+    `(` $input `)` attr-dict `:` functional-type($input, $res) $region
+  }];
 }
 
 // TODO: add stronger verification constraints
 def ReduceOp : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
-    let summary = "applies the region on each stream element to reduce the stream to a single value";
-    let description = [{
-        TODO
-    }];
+  let summary = "reduces the stream with the provided region";
+  let description = [{
+    `stream.reduce` folds the stream to a single value by applying the provided
+    region on each element. The result of one such application is provided to
+    the next one as the first parameter.
 
-    let arguments = (
-      ins StreamType:$input,
-      I64Attr:$initValue);
+    Example:
+    ```mlir
+    %res = stream.reduce(%in) {initValue = 0 : i64}: (!stream.stream<i64>) -> !stream.stream<i64> {
+    ^0(%acc: i64, %val: i64):
+      %r = arith.addi %acc, %val : i64
+      stream.yield %r : i64
+    }
+    ```
+  }];
 
-    let results = (outs StreamType:$res);
-    let regions = (region AnyRegion:$region);
+  let arguments = (
+    ins StreamType:$input,
+    I64Attr:$initValue);
 
-    let assemblyFormat = [{
-        `(` $input `)` attr-dict `:` functional-type(operands, $res) $region
-    }];
+  let results = (outs StreamType:$res);
+  let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = [{
+    `(` $input `)` attr-dict `:` functional-type(operands, $res) $region
+  }];
 }
 
 def UnpackOp : Stream_Op<"unpack", [
@@ -87,7 +122,6 @@ def UnpackOp : Stream_Op<"unpack", [
   }];
 
   let arguments = (ins Builtin_Tuple:$input);
-
   let results = (outs Variadic<AnyType>:$results);
 
   let hasCustomAssemblyFormat = 1;
@@ -129,7 +163,7 @@ def YieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
   let builders = [OpBuilder<(ins), [{ /* nothing to do */ }]>];
 
   let assemblyFormat =
-      [{  attr-dict ($results^ `:` type($results))? }];
+    [{  attr-dict ($results^ `:` type($results))? }];
 }
 
 def CreateOp : Stream_Op<"create", [
@@ -139,7 +173,7 @@ def CreateOp : Stream_Op<"create", [
   let description = [{
     "stream.create" creates a stream from a provided array attribute.
 
-    Currently, only integer streams are supported.
+    **NOTE**: Currently, only integer streams are supported.
 
     Example:
     ```mlir
@@ -164,7 +198,7 @@ def CreateOp : Stream_Op<"create", [
 def SplitOp : Stream_Op<"split", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
   let summary = "for each input produces outputs for each output stream.";
   let description = [{
-    "stream.split" takes one input stream and produces multiple output streams.
+    `stream.split` takes one input stream and produces multiple output streams.
     For each input element, each output stream expects an element. The exact
     splitting is implemented in a region.
 
@@ -183,7 +217,7 @@ def SplitOp : Stream_Op<"split", [SingleBlockImplicitTerminator<"stream::YieldOp
   let regions = (region AnyRegion:$region);
 
   let assemblyFormat = [{
-      `(` $input `)` attr-dict `:` functional-type($input, $results) $region
+    `(` $input `)` attr-dict `:` functional-type($input, $results) $region
   }];
 
   let hasRegionVerifier = 1;

@@ -19,9 +19,12 @@ class StreamDialect_Type<string name, string typeMnemonic, list<Trait> traits = 
 
 def StreamType : StreamDialect_Type<"Stream", "stream"> {
   let summary = "A type for streams with elements of type elementType";
+  let description = [{
+    Parameterized stream type that is used to model streams with a fixed
+    element type.
+  }];
 
   let parameters = (ins "::mlir::Type":$elementType);
-
   let assemblyFormat = "`<` $elementType `>`";
 }
 
