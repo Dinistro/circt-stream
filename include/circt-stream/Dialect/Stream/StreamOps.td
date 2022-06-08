@@ -123,10 +123,6 @@ def YieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
     "stream.yield" yields an SSA value from the steam dialect op region and
     terminates the regions. The semantics of how the values are yielded is
     defined by the parent operation.
-    If the parent operation defines no values, then the "scf.yield" may be
-    left out in the custom syntax and the builders will insert one implicitly.
-    Otherwise, it has to be present in the syntax to indicate which values are
-    yielded.
   }];
 
   let arguments = (ins Variadic<AnyType>:$results);
