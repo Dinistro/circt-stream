@@ -79,4 +79,21 @@ module {
   // CHECK-NEXT:   return %{{.*}} : !stream.stream<i32>
   // CHECK-NEXT: }
 
+  func.func @split(%in: !stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+    %res0, %res1 = stream.split(%in) : (!stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+    ^0(%val: tuple<i32, i32>):
+      %0, %1 = stream.unpack %val : tuple<i32, i32>
+      stream.yield %0, %1 : i32, i32
+    }
+    return %res0, %res1 : !stream.stream<i32>, !stream.stream<i32>
+  }
+
+  // CHECK: func.func @split(%{{.*}}: !stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+  // CHECK-NEXT:   %{{.*}}:2 = stream.split(%{{.*}}) : (!stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+  // CHECK-NEXT:   ^{{.*}}(%{{.*}}: tuple<i32, i32>):
+  // CHECK-NEXT:     %{{.*}}:2 = stream.unpack %{{.*}} : tuple<i32, i32>
+  // CHECK-NEXT:     stream.yield %{{.*}}#0, %{{.*}}#1 : i32, i32
+  // CHECK-NEXT:   }
+  // CHECK-NEXT:   return %{{.*}}#0, %{{.*}}#1 : !stream.stream<i32>, !stream.stream<i32>
+  // CHECK-NEXT: }
 }
