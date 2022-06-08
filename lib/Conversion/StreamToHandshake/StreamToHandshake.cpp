@@ -387,7 +387,7 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     Region &r = op.getRegion();
 
     TypeConverter *typeConverter = getTypeConverter();
-    Type tupleType = typeConverter->convertType(op.res().getType());
+    Type tupleType = typeConverter->convertType(op.result().getType());
     assert(tupleType.isa<TupleType>());
     Type resultType = tupleType.dyn_cast<TupleType>().getType(0);
 
