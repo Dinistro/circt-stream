@@ -29,11 +29,11 @@ ninja
 There are two types of tests. FileCheck tests can be executed with the following command:
 
 ```sh
-ninja check-standalone
+ninja check-stream
 ```
 
 To execute the integration tests an installation of Xilinx Vivado is required. Either provide the path to the vivado executable with the `-DVIVADO_PATH` flag to cmake or add it to the path.
 
 ```sh
-ninja check-standalone-integration
+ninja check-stream-integration
 ```
