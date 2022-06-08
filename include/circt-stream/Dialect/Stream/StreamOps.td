@@ -95,11 +95,11 @@ def ReduceOp : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::Yield
     ins StreamType:$input,
     I64Attr:$initValue);
 
-  let results = (outs StreamType:$res);
+  let results = (outs StreamType:$result);
   let regions = (region AnyRegion:$region);
 
   let assemblyFormat = [{
-    `(` $input `)` attr-dict `:` functional-type(operands, $res) $region
+    `(` $input `)` attr-dict `:` functional-type(operands, $result) $region
   }];
 }
 
