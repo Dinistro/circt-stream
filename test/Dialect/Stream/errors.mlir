@@ -7,8 +7,80 @@ func.func @create_wrong_type() {
 
 // -----
 
+func.func @map_wrong_arg_types(%in: !stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>) {
+  // expected-error @+1 {{expect the block argument #0 to have type 'tuple<i32, i32>', got 'i32' instead.}}
+  %res = stream.map(%in) : (!stream.stream<tuple<i32, i32>>) -> !stream.stream<i32> {
+  ^0(%val : i32):
+    %0 = arith.constant 1 : i32
+    %r = arith.addi %0, %val : i32
+    stream.yield %r : i32
+  }
+  return %res : !stream.stream<i32>
+}
+
+// -----
+
+func.func @map_wrong_arg_cnt(%in: !stream.stream<i32>) -> (!stream.stream<i32>) {
+  // expected-error @+1 {{expect region to have 1 arguments.}}
+  %res = stream.map(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
+    ^0(%val : i32, %val2 : i64):
+    stream.yield %val : i32
+  }
+  return %res : !stream.stream<i32>
+}
+
+// -----
+
+func.func @filter_wrong_yield_type(%in: !stream.stream<i32>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+  %res = stream.filter(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
+    ^0(%val : i32):
+    // expected-error @+1 {{expect the operand #0 to have type 'i1', got 'i32' instead.}}
+    stream.yield %val : i32
+  }
+  return %res : !stream.stream<i32>
+}
+
+// -----
+
+func.func @reduce_wrong_arg_types(%in: !stream.stream<i64>) -> !stream.stream<i64> {
+  // expected-error @+1 {{expect the block argument #0 to have type 'i64', got 'i32' instead.}}
+  %res = stream.reduce(%in) {initValue = 0 : i64}: (!stream.stream<i64>) -> !stream.stream<i64> {
+  ^0(%acc: i32, %val: i64):
+    %0 = arith.constant 1 : i64
+    stream.yield %0 : i64
+  }
+  return %res : !stream.stream<i64>
+}
+
+// -----
+
+func.func @reduce_wrong_yield_type(%in: !stream.stream<i64>) -> !stream.stream<i64> {
+  %res = stream.reduce(%in) {initValue = 0 : i64}: (!stream.stream<i64>) -> !stream.stream<i64> {
+  ^0(%acc: i64, %val: i64):
+    %0 = arith.constant 1 : i32
+    // expected-error @+1 {{expect the operand #0 to have type 'i64', got 'i32' instead.}}
+    stream.yield %0 : i32
+  }
+  return %res : !stream.stream<i64>
+}
+
+// -----
+
+func.func @split_wrong_yield_args(%in: !stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+  %res0, %res1 = stream.split(%in) : (!stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+    ^0(%val0: tuple<i32, i32>):
+    %c0 = arith.constant 0 : i32
+    %c1 = arith.constant 0 : i64
+    // expected-error @+1 {{expect the operand #1 to have type 'i32', got 'i64' instead.}}
+    stream.yield %c0, %c1 : i32, i64
+  }
+  return %res0, %res1 : !stream.stream<i32>, !stream.stream<i32>
+}
+
+// -----
+
 func.func @split_wrong_arg_types(%in: !stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
-  // expected-error @+1 {{expect the block argument to have type 'tuple<i32, i32>', got 'i32' instead.}}
+  // expected-error @+1 {{expect the block argument #0 to have type 'tuple<i32, i32>', got 'i32' instead.}}
   %res0, %res1 = stream.split(%in) : (!stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
   ^0(%val: i32):
     stream.yield %val, %val : i32, i32
@@ -19,7 +91,7 @@ func.func @split_wrong_arg_types(%in: !stream.stream<tuple<i32, i32>>) -> (!stre
 // -----
 
 func.func @split_wrong_arg_num(%in: !stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
-  // expected-error @+1 {{expect region to have exactly one argument.}}
+  // expected-error @+1 {{expect region to have 1 arguments.}}
   %res0, %res1 = stream.split(%in) : (!stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
     ^0(%val0: i32, %val1: i32):
     stream.yield %val0, %val1 : i32, i32
@@ -46,7 +118,7 @@ func.func @split_wrong_yield_args(%in: !stream.stream<tuple<i32, i32>>) -> (!str
     ^0(%val0: tuple<i32, i32>):
     %c0 = arith.constant 0 : i32
     %c1 = arith.constant 0 : i64
-    // expected-error @+1 {{expect the return types to match the types of the output streams}}
+    // expected-error @+1 {{expect the operand #1 to have type 'i32', got 'i64' instead.}}
     stream.yield %c0, %c1 : i32, i64
   }
   return %res0, %res1 : !stream.stream<i32>, !stream.stream<i32>
