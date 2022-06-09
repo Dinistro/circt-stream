@@ -16,7 +16,6 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 
-// TODO: add stronger verification constraints
 def MapOp : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
   let summary = "applies the region on each element";
   let description = [{
@@ -42,9 +41,10 @@ def MapOp : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::YieldOp">]>
   let assemblyFormat = [{
     `(` $input `)` attr-dict `:` functional-type($input, $res) $region
   }];
+
+  let hasRegionVerifier = 1;
 }
 
-// TODO: add stronger verification constraints
 def FilterOp : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
   let summary = "filters a stream with the provided predicate";
   let description = [{
@@ -71,9 +71,10 @@ def FilterOp : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::Yield
   let assemblyFormat = [{
     `(` $input `)` attr-dict `:` functional-type($input, $res) $region
   }];
+
+  let hasRegionVerifier = 1;
 }
 
-// TODO: add stronger verification constraints
 def ReduceOp : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
   let summary = "reduces the stream with the provided region";
   let description = [{
@@ -101,6 +102,8 @@ def ReduceOp : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::Yield
   let assemblyFormat = [{
     `(` $input `)` attr-dict `:` functional-type(operands, $result) $region
   }];
+
+  let hasRegionVerifier = 1;
 }
 
 def UnpackOp : Stream_Op<"unpack", [

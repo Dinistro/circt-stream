@@ -23,6 +23,97 @@ using namespace circt_stream::stream;
 #define GET_OP_CLASSES
 #include "circt-stream/Dialect/Stream/StreamOps.cpp.inc"
 
+static LogicalResult verifyRegionArgs(Operation *op, TypeRange expectedTypes,
+                                      Region &r) {
+  if (r.getNumArguments() != expectedTypes.size())
+    return op->emitError("expect region to have ")
+           << expectedTypes.size() << " arguments.";
+
+  unsigned i = 0;
+  for (auto [expected, actual] :
+       llvm::zip(expectedTypes, r.getArgumentTypes())) {
+    if (expected != actual)
+      return op->emitError("expect the block argument #")
+             << i << " to have type " << expected << ", got " << actual
+             << " instead.";
+    i++;
+  }
+
+  return success();
+}
+
+static LogicalResult verifyYieldOperands(Operation *op, TypeRange returnTypes,
+                                         Region &r) {
+  for (auto term : r.getOps<YieldOp>()) {
+    if (term.getNumOperands() != returnTypes.size())
+      return term.emitError("expect ")
+             << returnTypes.size() << " operands, got "
+             << term.getNumOperands();
+    unsigned i = 0;
+    for (auto [expected, actual] :
+         llvm::zip(returnTypes, term.getOperandTypes())) {
+      if (expected != actual)
+        return term.emitError("expect the operand #")
+               << i << " to have type " << expected << ", got " << actual
+               << " instead.";
+      i++;
+    }
+  }
+  return success();
+}
+
+static Type getElementType(Type streamType) {
+  assert(streamType.isa<StreamType>() &&
+         "can only extract element type of a StreamType");
+  return streamType.cast<StreamType>().getElementType();
+}
+
+/// Verifies that a region has indeed the expected inputs and that all
+/// terminators return operands matching the provided return types.
+static LogicalResult verifyRegion(Operation *op, Region &r,
+                                  TypeRange inputTypes, TypeRange returnTypes) {
+  // Check arguments
+  if (failed(verifyRegionArgs(op, inputTypes, r))) return failure();
+
+  // Check terminator
+  if (failed(verifyYieldOperands(op, returnTypes, r))) return failure();
+
+  return success();
+}
+
+/// Verifies that a region can handle the input streams and always returns
+/// elements with the type of the output stream.
+static LogicalResult verifyRegion(Operation *op, Region &r) {
+  SmallVector<Type> inputTypes =
+      llvm::to_vector(llvm::map_range(op->getOperandTypes(), getElementType));
+
+  SmallVector<Type> returnTypes =
+      llvm::to_vector(llvm::map_range(op->getResultTypes(), getElementType));
+
+  return verifyRegion(op, r, inputTypes, returnTypes);
+}
+
+LogicalResult MapOp::verifyRegions() {
+  return verifyRegion(getOperation(), region());
+}
+
+LogicalResult FilterOp::verifyRegions() {
+  SmallVector<Type> inputTypes = llvm::to_vector(
+      llvm::map_range((*this)->getOperandTypes(), getElementType));
+
+  Type boolType = IntegerType::get(this->getContext(), 1);
+
+  return verifyRegion(getOperation(), region(), inputTypes, boolType);
+}
+
+LogicalResult ReduceOp::verifyRegions() {
+  Type inputType = getElementType(input().getType());
+  Type accType = getElementType(result().getType());
+
+  return verifyRegion(getOperation(), region(), TypeRange({inputType, accType}),
+                      accType);
+}
+
 ParseResult UnpackOp::parse(OpAsmParser &parser, OperationState &result) {
   OpAsmParser::UnresolvedOperand tuple;
   TupleType type;
@@ -139,29 +230,5 @@ LogicalResult CreateOp::verify() {
 }
 
 LogicalResult SplitOp::verifyRegions() {
-  Region &r = region();
-  // Check arguments
-  if (r.getNumArguments() != 1)
-    return emitOpError("expect region to have exactly one argument.");
-
-  Type elementType = input().getType().cast<StreamType>().getElementType();
-  Type argType = r.getArgument(0).getType();
-  if (argType != elementType)
-    return emitOpError("expect the block argument to have type ")
-           << elementType << ", got " << argType << " instead.";
-
-  // Check terminator
-  auto returnTypes = llvm::map_range(getResultTypes(), [](Type t) {
-    return t.cast<StreamType>().getElementType();
-  });
-  for (auto term : r.getOps<YieldOp>()) {
-    if (term.getNumOperands() != getNumResults())
-      return term.emitError("expect ")
-             << getNumResults() << " operands, got " << term.getNumOperands();
-    if (term.getOperandTypes() != returnTypes)
-      return term.emitError(
-          "expect the return types to match the types of the output streams");
-  }
-
-  return success();
+  return verifyRegion(getOperation(), region());
 }
