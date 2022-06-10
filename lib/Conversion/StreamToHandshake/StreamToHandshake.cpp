@@ -84,10 +84,12 @@ class StreamTypeConverter : public TypeConverter {
  public:
   StreamTypeConverter() {
     addConversion([](Type type) { return type; });
-    addConversion([](StreamType type) {
+    addConversion([](StreamType type, SmallVectorImpl<Type> &res) {
       MLIRContext *ctx = type.getContext();
-      return TupleType::get(ctx,
-                            {type.getElementType(), IntegerType::get(ctx, 1)});
+      res.push_back(TupleType::get(
+          ctx, {type.getElementType(), IntegerType::get(ctx, 1)}));
+      res.push_back(NoneType::get(ctx));
+      return success();
     });
   }
 };
@@ -114,15 +116,12 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
             typeConverter->convertSignatureArgs(oldFuncType.getInputs(), sig)))
       return failure();
 
-    // add the ctrl input
-    sig.addInputs(rewriter.getNoneType());
     if (failed(typeConverter->convertTypes(oldFuncType.getResults(),
                                            newResults)) ||
         failed(
             rewriter.convertRegionTypes(&op.getBody(), *typeConverter, &sig)))
       return failure();
 
-    newResults.push_back(rewriter.getNoneType());
     auto newFuncType =
         rewriter.getFunctionType(sig.getConvertedTypes(), newResults);
 
@@ -169,21 +168,26 @@ static Value getCtrlSignal(ValueRange operands) {
   return getCtrlSignal(op->getOperands());
 }
 
+static void resolveStreamOperand(Value oldOperand,
+                                 SmallVectorImpl<Value> &newOperands) {
+  assert(oldOperand.getType().isa<StreamType>());
+  // TODO: is there another way to resolve this directly?
+  auto castOp =
+      dyn_cast<UnrealizedConversionCastOp>(oldOperand.getDefiningOp());
+  for (auto castOperand : castOp.getInputs())
+    newOperands.push_back(castOperand);
+}
+
 struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
   using OpConversionPattern<func::ReturnOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
       func::ReturnOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
+    SmallVector<Value> operands;
+    for (auto oldOperand : adaptor.getOperands())
+      resolveStreamOperand(oldOperand, operands);
 
-    // return block arg ctrl signal if nothing else has to be returned
-    if (adaptor.getOperands().size() == 0) {
-      Value ctrl = op->getBlock()->getArguments().back();
-      operands.push_back(ctrl);
-    } else {
-      operands.push_back(getCtrlSignal(adaptor.getOperands()));
-    }
     rewriter.replaceOpWithNewOp<handshake::ReturnOp>(op, operands);
     return success();
   }
