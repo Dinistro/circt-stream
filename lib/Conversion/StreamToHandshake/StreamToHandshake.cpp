@@ -116,11 +116,17 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
             typeConverter->convertSignatureArgs(oldFuncType.getInputs(), sig)))
       return failure();
 
+    // Add ctrl signal for initialization control flow
+    sig.addInputs(rewriter.getNoneType());
+
     if (failed(typeConverter->convertTypes(oldFuncType.getResults(),
                                            newResults)) ||
         failed(
             rewriter.convertRegionTypes(&op.getBody(), *typeConverter, &sig)))
       return failure();
+
+    // Add ctrl
+    newResults.push_back(rewriter.getNoneType());
 
     auto newFuncType =
         rewriter.getFunctionType(sig.getConvertedTypes(), newResults);
@@ -178,11 +184,19 @@ static void resolveStreamOperand(Value oldOperand,
     newOperands.push_back(castOperand);
 }
 
-static void resolveNewOperands(ValueRange oldOperands,
+static void resolveNewOperands(Operation *oldOperation,
                                ValueRange remappedOperands,
                                SmallVectorImpl<Value> &newOperands) {
-  for (auto [oldOp, remappedOp] : llvm::zip(oldOperands, remappedOperands)) {
+  for (auto [oldOp, remappedOp] :
+       llvm::zip(oldOperation->getOperands(), remappedOperands))
     resolveStreamOperand(remappedOp, newOperands);
+
+  // Resolve the init ctrl signal
+  if (remappedOperands.size() == 0) {
+    Value ctrl = oldOperation->getBlock()->getArguments().back();
+    newOperands.push_back(ctrl);
+  } else {
+    newOperands.push_back(getCtrlSignal(remappedOperands));
   }
 }
 
@@ -193,7 +207,7 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
       func::ReturnOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> operands;
-    resolveNewOperands(op.getOperands(), adaptor.getOperands(), operands);
+    resolveNewOperands(op, adaptor.getOperands(), operands);
 
     rewriter.replaceOpWithNewOp<handshake::ReturnOp>(op, operands);
     return success();
@@ -231,8 +245,20 @@ static InstanceOp replaceWithInstance(Operation *op, FuncOp func,
   InstanceOp instance =
       rewriter.create<InstanceOp>(op->getLoc(), func, newOperands);
 
-  rewriter.replaceOpWithNewOp<UnrealizedConversionCastOp>(
-      op, op->getResultTypes(), instance->getResults());
+  SmallVector<Value> newValues;
+  auto resultIt = instance->getResults().begin();
+  for (auto oldResType : op->getResultTypes()) {
+    assert(oldResType.isa<StreamType>() &&
+           "can currently only replace stream types");
+
+    // TODO this is very fragile
+    auto tuple = *resultIt++;
+    auto ctrl = *resultIt++;
+
+    auto castOp = rewriter.replaceOpWithNewOp<UnrealizedConversionCastOp>(
+        op, oldResType, ValueRange({tuple, ctrl}));
+    newValues.push_back(castOp.getResult(0));
+  }
 
   return instance;
 }
@@ -265,29 +291,6 @@ struct StreamOpLowering : public OpConversionPattern<Op> {
   SymbolUniquer &symbolUniquer;
 };
 
-/// This is used instead of the default TypeConverter::convertSignatureArgs
-/// because the unrealized conversion cast somehow cause problems.
-/// TODO(culmann): try to fix this.
-///   Maybe we could use a separate typeConverter combined with argument
-///   materializations, but the behaviour is a bit funky.
-static LogicalResult convertSignatureArgs(
-    TypeConverter *typeConverter, TypeConverter::SignatureConversion &sig,
-    TypeRange originalTypes) {
-  for (auto it : llvm::enumerate(originalTypes)) {
-    unsigned i = it.index();
-    Type origType = it.value();
-    SmallVector<Type> newTypes;
-    if (failed(typeConverter->convertTypes(origType, newTypes)))
-      return failure();
-
-    assert(newTypes.size() == 2 &&
-           "the converted type should originally be a StreamType");
-    sig.addInputs(i, newTypes[0]);
-    sig.addInputs(newTypes[1]);
-  }
-  return success();
-}
-
 // Builds a handshake::FuncOp and that represents the mapping funtion. This
 // function is then instantiated and connected to its inputs and outputs.
 struct MapOpLowering : public StreamOpLowering<MapOp> {
@@ -297,42 +300,46 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
       MapOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Region &r = op.getRegion();
-
     TypeConverter *typeConverter = getTypeConverter();
-    TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
 
-    if (failed(convertSignatureArgs(typeConverter, sig, op->getOperandTypes())))
+    // create surrounding region
+    Region r;
+
+    SmallVector<Type> inputTypes;
+    if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
       return failure();
+    inputTypes.push_back(rewriter.getNoneType());
 
-    //  add the ctrl input
-    sig.addInputs(adaptor.getOperands().size(), rewriter.getNoneType());
+    SmallVector<Location> argLocs(inputTypes.size(), loc);
 
     Block *entryBlock =
-        rewriter.applySignatureConversion(&r, sig, typeConverter);
-    // replace old ctrl signal
-    rewriter.replaceUsesOfBlockArgument(entryBlock->getArgument(2),
-                                        entryBlock->getArgument(1));
-    entryBlock->eraseArgument(2);
+        rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
+    Value tupleIn = entryBlock->getArgument(0);
+    Value streamCtrl = entryBlock->getArgument(1);
+    Value initCtrl = entryBlock->getArgument(2);
 
-    auto unpack = unpackAndReplace(entryBlock->getArgument(0), loc, rewriter);
+    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+    Value data = unpack.getResult(0);
     Value eos = unpack.getResult(1);
+
+    Block *lambda = &op.getRegion().front();
+    rewriter.mergeBlocks(lambda, entryBlock, ValueRange({data, streamCtrl}));
 
     Operation *oldTerm = entryBlock->getTerminator();
 
-    // conversion before that we need a clean binding of EOS values
     rewriter.setInsertionPoint(oldTerm);
     auto tupleOut = rewriter.create<handshake::PackOp>(
         oldTerm->getLoc(), ValueRange({oldTerm->getOperand(0), eos}));
 
-    SmallVector<Value> newTermOperands = {tupleOut, oldTerm->getOperand(1)};
+    SmallVector<Value> newTermOperands = {tupleOut, oldTerm->getOperand(1),
+                                          initCtrl};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
     TypeRange resTypes = newTerm->getOperandTypes();
 
     SmallVector<Value> operands;
-    resolveNewOperands(op->getOperands(), adaptor.getOperands(), operands);
+    resolveNewOperands(op, adaptor.getOperands(), operands);
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
     FuncOp newFuncOp =
