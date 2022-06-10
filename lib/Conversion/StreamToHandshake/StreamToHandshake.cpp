@@ -178,6 +178,14 @@ static void resolveStreamOperand(Value oldOperand,
     newOperands.push_back(castOperand);
 }
 
+static void resolveNewOperands(ValueRange oldOperands,
+                               ValueRange remappedOperands,
+                               SmallVectorImpl<Value> &newOperands) {
+  for (auto [oldOp, remappedOp] : llvm::zip(oldOperands, remappedOperands)) {
+    resolveStreamOperand(remappedOp, newOperands);
+  }
+}
+
 struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
   using OpConversionPattern<func::ReturnOp>::OpConversionPattern;
 
@@ -185,8 +193,7 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
       func::ReturnOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> operands;
-    for (auto oldOperand : adaptor.getOperands())
-      resolveStreamOperand(oldOperand, operands);
+    resolveNewOperands(op.getOperands(), adaptor.getOperands(), operands);
 
     rewriter.replaceOpWithNewOp<handshake::ReturnOp>(op, operands);
     return success();
@@ -217,15 +224,17 @@ static FuncOp createFuncOp(Region &region, StringRef name, TypeRange argTypes,
 }
 
 /// Replaces op with a new InstanceOp that calls the provided function.
-static void replaceWithInstance(Operation *op, FuncOp func,
-                                ValueRange newOperands,
-                                ConversionPatternRewriter &rewriter) {
+static InstanceOp replaceWithInstance(Operation *op, FuncOp func,
+                                      ValueRange newOperands,
+                                      ConversionPatternRewriter &rewriter) {
   rewriter.setInsertionPoint(op);
   InstanceOp instance =
       rewriter.create<InstanceOp>(op->getLoc(), func, newOperands);
 
-  // The ctrl signal has to be ignored
-  rewriter.replaceOp(op, instance.getResults().drop_back());
+  rewriter.replaceOpWithNewOp<UnrealizedConversionCastOp>(
+      op, op->getResultTypes(), instance->getResults());
+
+  return instance;
 }
 
 static handshake::UnpackOp unpackAndReplace(
@@ -256,6 +265,29 @@ struct StreamOpLowering : public OpConversionPattern<Op> {
   SymbolUniquer &symbolUniquer;
 };
 
+/// This is used instead of the default TypeConverter::convertSignatureArgs
+/// because the unrealized conversion cast somehow cause problems.
+/// TODO(culmann): try to fix this.
+///   Maybe we could use a separate typeConverter combined with argument
+///   materializations, but the behaviour is a bit funky.
+static LogicalResult convertSignatureArgs(
+    TypeConverter *typeConverter, TypeConverter::SignatureConversion &sig,
+    TypeRange originalTypes) {
+  for (auto it : llvm::enumerate(originalTypes)) {
+    unsigned i = it.index();
+    Type origType = it.value();
+    SmallVector<Type> newTypes;
+    if (failed(typeConverter->convertTypes(origType, newTypes)))
+      return failure();
+
+    assert(newTypes.size() == 2 &&
+           "the converted type should originally be a StreamType");
+    sig.addInputs(i, newTypes[0]);
+    sig.addInputs(newTypes[1]);
+  }
+  return success();
+}
+
 // Builds a handshake::FuncOp and that represents the mapping funtion. This
 // function is then instantiated and connected to its inputs and outputs.
 struct MapOpLowering : public StreamOpLowering<MapOp> {
@@ -270,7 +302,7 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
     TypeConverter *typeConverter = getTypeConverter();
     TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
 
-    if (failed(typeConverter->convertSignatureArgs(op->getOperandTypes(), sig)))
+    if (failed(convertSignatureArgs(typeConverter, sig, op->getOperandTypes())))
       return failure();
 
     //  add the ctrl input
@@ -278,6 +310,10 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
 
     Block *entryBlock =
         rewriter.applySignatureConversion(&r, sig, typeConverter);
+    // replace old ctrl signal
+    rewriter.replaceUsesOfBlockArgument(entryBlock->getArgument(2),
+                                        entryBlock->getArgument(1));
+    entryBlock->eraseArgument(2);
 
     auto unpack = unpackAndReplace(entryBlock->getArgument(0), loc, rewriter);
     Value eos = unpack.getResult(1);
@@ -295,8 +331,8 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
 
     TypeRange resTypes = newTerm->getOperandTypes();
 
-    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
-    operands.push_back(getCtrlSignal(adaptor.getOperands()));
+    SmallVector<Value> operands;
+    resolveNewOperands(op->getOperands(), adaptor.getOperands(), operands);
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
     FuncOp newFuncOp =
@@ -713,6 +749,17 @@ LogicalResult transformStdRegions(ModuleOp m) {
   return success();
 }
 
+static LogicalResult removeUnusedConversionCasts(ModuleOp m) {
+  for (auto funcOp : m.getOps<handshake::FuncOp>()) {
+    if (funcOp.isDeclaration()) continue;
+    Region &funcRegion = funcOp.body();
+    for (auto op : funcRegion.getOps<UnrealizedConversionCastOp>()) {
+      op->erase();
+    }
+  }
+  return success();
+}
+
 class StreamToHandshakePass
     : public StreamToHandshakeBase<StreamToHandshakePass> {
  public:
@@ -729,6 +776,7 @@ class StreamToHandshakePass
     // Patterns to lower stream dialect operations
     populateStreamToHandshakePatterns(typeConverter, symbolUniquer, patterns);
     target.addLegalOp<ModuleOp>();
+    target.addLegalOp<UnrealizedConversionCastOp>();
     target.addLegalDialect<handshake::HandshakeDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addIllegalDialect<func::FuncDialect>();
@@ -739,6 +787,9 @@ class StreamToHandshakePass
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
+      signalPassFailure();
+
+    if (failed(removeUnusedConversionCasts(getOperation())))
       signalPassFailure();
 
     if (failed(materializeForksAndSinks(getOperation()))) signalPassFailure();
