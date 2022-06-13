@@ -814,9 +814,6 @@ class StreamToHandshakePass
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addIllegalDialect<func::FuncDialect>();
     target.addIllegalDialect<StreamDialect>();
-    // NOTE: we add this here to ensure that the hacky lowerRegion changes
-    // will be accepted.
-    target.addLegalOp<YieldOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
