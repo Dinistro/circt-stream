@@ -17,13 +17,13 @@ module {
     return %res : !stream.stream<i32>
   }
 
-// CHECK:  handshake.func private @[[LABEL_1:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
+  // CHECK:  handshake.func private @[[LABEL_1:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none)
 
-// CHECK:  handshake.func private @[[LABEL_0:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
+  // CHECK:  handshake.func private @[[LABEL_0:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none)
 
-// CHECK:  handshake.func @map(%{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
-// CHECK-NEXT:    %{{.*}}:2 = instance @[[LABEL_0]](%{{.*}}, %{{.*}}) : (tuple<i32, i1>, none) -> (tuple<i32, i1>, none)
-// CHECK-NEXT:    %{{.*}}:2 = instance @[[LABEL_1]](%{{.*}}#0, %{{.*}}#1) : (tuple<i32, i1>, none) -> (tuple<i32, i1>, none)
-// CHECK-NEXT:    return %{{.*}}#0, %{{.*}}#1 : tuple<i32, i1>, none
+  // CHECK:  handshake.func @map(%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none)
+// CHECK-NEXT:    %{{.*}}:3 = instance @[[LABEL_0]](%{{.*}}, %{{.*}}, %{{.*}}) : (tuple<i32, i1>, none, none) -> (tuple<i32, i1>, none, none)
+// CHECK-NEXT:    %{{.*}}:3 = instance @[[LABEL_1]](%{{.*}}#0, %{{.*}}#1, %{{.*}}#2) : (tuple<i32, i1>, none, none) -> (tuple<i32, i1>, none, none)
+// CHECK-NEXT:    return %{{.*}}#0, %{{.*}}#1, %{{.*}}#2 : tuple<i32, i1>, none, none
 // CHECK-NEXT:  }
 }
