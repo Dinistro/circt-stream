@@ -21,7 +21,6 @@
 #include "circt/Dialect/Handshake/HandshakeDialect.h"
 #include "circt/Dialect/Handshake/HandshakeOps.h"
 #include "circt/Support/SymCache.h"
-#include "llvm/Support/FormatVariadic.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -29,6 +28,7 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/Support/FormatVariadic.h"
 
 using namespace circt;
 using namespace circt::handshake;
@@ -49,7 +49,7 @@ static std::string getBareOpName(Operation *op) {
 /// Helper class that provides functionality for creating unique symbol names.
 /// One instance is shared among all patterns.
 class SymbolUniquer : public SymbolCache {
- public:
+public:
   SymbolUniquer(Operation *top) : context(top->getContext()) {
     addDefinitions(top);
   }
@@ -76,12 +76,12 @@ class SymbolUniquer : public SymbolCache {
     return name;
   }
 
- private:
+private:
   MLIRContext *context;
 };
 
 class StreamTypeConverter : public TypeConverter {
- public:
+public:
   StreamTypeConverter() {
     addConversion([](Type type) { return type; });
     addConversion([](StreamType type, SmallVectorImpl<Type> &res) {
@@ -96,16 +96,16 @@ class StreamTypeConverter : public TypeConverter {
 
 // Functionality to share state when lowering, see CIRCT's HandshakeLowering
 class StreamLowering : public HandshakeLowering {
- public:
+public:
   explicit StreamLowering(Region &r) : HandshakeLowering(r) {}
 };
 
 struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
   using OpConversionPattern<func::FuncOp>::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(
-      func::FuncOp op, OpAdaptor adapter,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(func::FuncOp op, OpAdaptor adapter,
+                  ConversionPatternRewriter &rewriter) const override {
     // type conversion
     TypeConverter *typeConverter = getTypeConverter();
     FunctionType oldFuncType = op.getFunctionType().cast<FunctionType>();
@@ -203,9 +203,9 @@ static void resolveNewOperands(Operation *oldOperation,
 struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
   using OpConversionPattern<func::ReturnOp>::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(
-      func::ReturnOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(func::ReturnOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> operands;
     resolveNewOperands(op, adaptor.getOperands(), operands);
 
@@ -287,9 +287,9 @@ struct StreamOpLowering : public OpConversionPattern<Op> {
 struct MapOpLowering : public StreamOpLowering<MapOp> {
   using StreamOpLowering::StreamOpLowering;
 
-  LogicalResult matchAndRewrite(
-      MapOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(MapOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     TypeConverter *typeConverter = getTypeConverter();
 
@@ -346,9 +346,9 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
 struct FilterOpLowering : public StreamOpLowering<FilterOp> {
   using StreamOpLowering::StreamOpLowering;
 
-  LogicalResult matchAndRewrite(
-      FilterOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(FilterOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     TypeConverter *typeConverter = getTypeConverter();
 
@@ -422,9 +422,9 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
 struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
   using StreamOpLowering::StreamOpLowering;
 
-  LogicalResult matchAndRewrite(
-      ReduceOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(ReduceOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
 
     TypeConverter *typeConverter = getTypeConverter();
@@ -529,9 +529,9 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
 struct PackOpLowering : public OpConversionPattern<stream::PackOp> {
   using OpConversionPattern<stream::PackOp>::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(
-      stream::PackOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(stream::PackOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<handshake::PackOp>(op, adaptor.getOperands());
 
     return success();
@@ -541,9 +541,9 @@ struct PackOpLowering : public OpConversionPattern<stream::PackOp> {
 struct UnpackOpLowering : public OpConversionPattern<stream::UnpackOp> {
   using OpConversionPattern<stream::UnpackOp>::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(
-      stream::UnpackOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(stream::UnpackOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<handshake::UnpackOp>(op, adaptor.input());
 
     return success();
@@ -554,9 +554,9 @@ struct CreateOpLowering : public StreamOpLowering<CreateOp> {
   using StreamOpLowering::StreamOpLowering;
 
   // TODO add location usage
-  LogicalResult matchAndRewrite(
-      stream::CreateOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(stream::CreateOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Region r;
     Location loc = op.getLoc();
 
@@ -645,9 +645,9 @@ struct CreateOpLowering : public StreamOpLowering<CreateOp> {
 struct SplitOpLowering : public StreamOpLowering<SplitOp> {
   using StreamOpLowering::StreamOpLowering;
 
-  LogicalResult matchAndRewrite(
-      SplitOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(SplitOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     TypeConverter *typeConverter = getTypeConverter();
 
@@ -705,9 +705,101 @@ struct SplitOpLowering : public StreamOpLowering<SplitOp> {
   }
 };
 
-static void populateStreamToHandshakePatterns(
-    StreamTypeConverter &typeConverter, SymbolUniquer symbolUniquer,
-    RewritePatternSet &patterns) {
+/// TODO: make this more efficient
+template <typename Op>
+static Value buildReduceTree(ValueRange values, Location loc,
+                             ConversionPatternRewriter &rewriter) {
+  assert(values.size() > 0);
+  Value res = values.front();
+  for (auto val : values.drop_front()) {
+    res = rewriter.create<Op>(loc, res, val);
+  }
+  return res;
+}
+
+struct CombineOpLowering : public StreamOpLowering<CombineOp> {
+  using StreamOpLowering::StreamOpLowering;
+
+  LogicalResult
+  matchAndRewrite(CombineOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+
+    // create surrounding region
+    Region r;
+
+    SmallVector<Type> inputTypes;
+    if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
+      return failure();
+    inputTypes.push_back(rewriter.getNoneType());
+
+    SmallVector<Location> argLocs(inputTypes.size(), loc);
+
+    Block *entryBlock =
+        rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
+
+    SmallVector<Value> blockInputs;
+    SmallVector<Value> eosInputs;
+    SmallVector<Value> ctrlInputs;
+    for (unsigned i = 0, e = entryBlock->getNumArguments() - 1; i < e; i += 2) {
+      Value tupleIn = entryBlock->getArgument(i);
+      Value streamCtrl = entryBlock->getArgument(i + 1);
+      auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+      Value data = unpack.getResult(0);
+      Value eos = unpack.getResult(1);
+
+      blockInputs.push_back(data);
+      ctrlInputs.push_back(streamCtrl);
+      eosInputs.push_back(eos);
+    }
+    Value initCtrl = entryBlock->getArguments().back();
+
+    // only execute region when ALL inputs are ready
+    auto ctrlJoin = rewriter.create<JoinOp>(loc, ctrlInputs);
+    blockInputs.push_back(ctrlJoin);
+    Block *lambda = &op.getRegion().front();
+
+    rewriter.mergeBlocks(lambda, entryBlock, blockInputs);
+
+    Operation *oldTerm = entryBlock->getTerminator();
+    rewriter.setInsertionPoint(oldTerm);
+
+    // TODO What to do when not all streams provide an eos signal
+    Value eos = buildReduceTree<arith::OrIOp>(eosInputs, loc, rewriter);
+
+    SmallVector<Value> newTermOperands;
+    for (auto oldOp : oldTerm->getOperands().drop_back()) {
+      auto pack = rewriter.create<handshake::PackOp>(oldTerm->getLoc(),
+                                                     ValueRange({oldOp, eos}));
+      newTermOperands.push_back(pack.getResult());
+      newTermOperands.push_back(oldTerm->getOperands().back());
+    }
+
+    newTermOperands.push_back(initCtrl);
+    auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
+        oldTerm, newTermOperands);
+
+    TypeRange resTypes = newTerm->getOperandTypes();
+
+    SmallVector<Value> operands;
+    resolveNewOperands(op, adaptor.getOperands(), operands);
+
+    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
+    FuncOp newFuncOp =
+        createFuncOp(r, symbolUniquer.getUniqueSymName(op),
+                     entryBlock->getArgumentTypes(), resTypes, rewriter);
+
+    replaceWithInstance(op, newFuncOp, operands, rewriter);
+
+    return success();
+  }
+};
+
+static void
+populateStreamToHandshakePatterns(StreamTypeConverter &typeConverter,
+                                  SymbolUniquer symbolUniquer,
+                                  RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
     FuncOpLowering,
@@ -721,7 +813,8 @@ static void populateStreamToHandshakePatterns(
     FilterOpLowering,
     ReduceOpLowering,
     CreateOpLowering,
-    SplitOpLowering
+    SplitOpLowering,
+    CombineOpLowering
   >(typeConverter, patterns.getContext(), symbolUniquer);
   // clang-format on
 }
@@ -758,7 +851,7 @@ static LogicalResult dematerializeForksAndSinks(Region &r) {
 
 // TODO Do this with an op trait?
 bool isStreamOp(Operation *op) {
-  return isa<MapOp, FilterOp, ReduceOp, SplitOp>(op);
+  return isa<MapOp, FilterOp, ReduceOp, SplitOp, CombineOp>(op);
 }
 
 /// Traverses the modules region recursively and applies the std to handshake
@@ -766,14 +859,18 @@ bool isStreamOp(Operation *op) {
 LogicalResult transformStdRegions(ModuleOp m) {
   // go over all stream ops and transform their regions
   for (auto funcOp : llvm::make_early_inc_range(m.getOps<func::FuncOp>())) {
-    if (funcOp.isDeclaration()) continue;
+    if (funcOp.isDeclaration())
+      continue;
     Region *funcRegion = funcOp.getCallableRegion();
     for (Operation &op : funcRegion->getOps()) {
-      if (!isStreamOp(&op)) continue;
+      if (!isStreamOp(&op))
+        continue;
       for (auto &r : op.getRegions()) {
         StreamLowering sl(r);
-        if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
-        if (failed(dematerializeForksAndSinks(r))) return failure();
+        if (failed(lowerRegion<YieldOp>(sl, false, false)))
+          return failure();
+        if (failed(dematerializeForksAndSinks(r)))
+          return failure();
       }
     }
   }
@@ -782,7 +879,8 @@ LogicalResult transformStdRegions(ModuleOp m) {
 
 static LogicalResult removeUnusedConversionCasts(ModuleOp m) {
   for (auto funcOp : m.getOps<handshake::FuncOp>()) {
-    if (funcOp.isDeclaration()) continue;
+    if (funcOp.isDeclaration())
+      continue;
     Region &funcRegion = funcOp.body();
     for (auto op : llvm::make_early_inc_range(
              funcRegion.getOps<UnrealizedConversionCastOp>())) {
@@ -794,7 +892,7 @@ static LogicalResult removeUnusedConversionCasts(ModuleOp m) {
 
 class StreamToHandshakePass
     : public StreamToHandshakeBase<StreamToHandshakePass> {
- public:
+public:
   void runOnOperation() override {
     if (failed(transformStdRegions(getOperation()))) {
       signalPassFailure();
@@ -822,10 +920,11 @@ class StreamToHandshakePass
     if (failed(removeUnusedConversionCasts(getOperation())))
       signalPassFailure();
 
-    if (failed(materializeForksAndSinks(getOperation()))) signalPassFailure();
+    if (failed(materializeForksAndSinks(getOperation())))
+      signalPassFailure();
   }
 };
-}  // namespace
+} // namespace
 
 std::unique_ptr<Pass> circt_stream::createStreamToHandshakePass() {
   return std::make_unique<StreamToHandshakePass>();
