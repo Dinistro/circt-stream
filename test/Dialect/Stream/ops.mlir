@@ -96,4 +96,22 @@ module {
   // CHECK-NEXT:   }
   // CHECK-NEXT:   return %{{.*}}#0, %{{.*}}#1 : !stream.stream<i32>, !stream.stream<i32>
   // CHECK-NEXT: }
+
+  func.func @combine(%in0: !stream.stream<i32>, %in1: !stream.stream<i32>) -> (!stream.stream<tuple<i32, i32>>) {
+    %res = stream.combine(%in0, %in1) : (!stream.stream<i32>, !stream.stream<i32>) -> (!stream.stream<tuple<i32, i32>>) {
+    ^0(%val0: i32, %val1: i32):
+      %0 = stream.pack %val0, %val1 : tuple<i32, i32>
+      stream.yield %0 : tuple<i32, i32>
+    }
+    return %res : !stream.stream<tuple<i32, i32>>
+  }
+
+  // CHECK: func.func @combine(%{{.*}}: !stream.stream<i32>, %{{.*}}: !stream.stream<i32>) -> !stream.stream<tuple<i32, i32>> {
+  // CHECK-NEXT:   %{{.*}} = stream.combine(%{{.*}}, %{{.*}}) : (!stream.stream<i32>, !stream.stream<i32>) -> !stream.stream<tuple<i32, i32>> {
+  // CHECK-NEXT:   ^bb0(%{{.*}}: i32, %{{.*}}: i32):
+  // CHECK-NEXT:     %{{.*}} = stream.pack %{{.*}}, %{{.*}} : tuple<i32, i32>
+  // CHECK-NEXT:     stream.yield %{{.*}} : tuple<i32, i32>
+  // CHECK-NEXT:   }
+  // CHECK-NEXT:   return %{{.*}} : !stream.stream<tuple<i32, i32>>
+  // CHECK-NEXT: }
 }

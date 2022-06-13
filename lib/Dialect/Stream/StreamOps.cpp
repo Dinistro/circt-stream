@@ -232,3 +232,7 @@ LogicalResult CreateOp::verify() {
 LogicalResult SplitOp::verifyRegions() {
   return verifyRegion(getOperation(), region());
 }
+
+LogicalResult CombineOp::verifyRegions() {
+  return verifyRegion(getOperation(), region());
+}

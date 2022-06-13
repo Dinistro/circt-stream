@@ -153,8 +153,10 @@ def PackOp : Stream_Op<"pack", [
   let hasCustomAssemblyFormat = 1;
 }
 
-def YieldOp : Stream_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               ParentOneOf<["MapOp, FilterOp, ReduceOp, SplitOp"]>]> {
+def YieldOp : Stream_Op<"yield", [
+    NoSideEffect, ReturnLike, Terminator,
+    ParentOneOf<["MapOp, FilterOp, ReduceOp, SplitOp, CombineOp"]>
+]> {
   let summary = "stream yield and termination operation";
   let description = [{
     "stream.yield" yields an SSA value from the steam dialect op region and
@@ -221,6 +223,34 @@ def SplitOp : Stream_Op<"split", [SingleBlockImplicitTerminator<"stream::YieldOp
 
   let assemblyFormat = [{
     `(` $input `)` attr-dict `:` functional-type($input, $results) $region
+  }];
+
+  let hasRegionVerifier = 1;
+}
+
+def CombineOp : Stream_Op<"combine", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
+  let summary = "combines elements from all incomming stream to one output element";
+  let description = [{
+    `stream.combine` takes a variable number of input stream and produces one output stream.
+    When all input streams have an element ready, the provided region is executed to
+    produce an output element.
+
+    Example:
+    ```mlir
+    %res = stream.combine(%in0, %in1) : (!stream.stream<i32>, !stream.stream<i32>) -> (!stream.stream<tuple<i32, i32>>) {
+    ^0(%val0: i32, %val1: i32):
+      %0 = stream.pack %val0, %val1 : tuple<i32, i32>
+      stream.yield %0 : tuple<i32, i32>
+    }
+    ```
+    }];
+
+  let arguments = (ins Variadic<StreamType>:$inputs);
+  let results = (outs StreamType:$result);
+  let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = [{
+    `(` $inputs `)` attr-dict `:` functional-type($inputs, $result) $region
   }];
 
   let hasRegionVerifier = 1;
