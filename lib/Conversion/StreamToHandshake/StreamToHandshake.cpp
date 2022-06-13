@@ -359,24 +359,29 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
       FilterOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Region &r = op.getRegion();
-
     TypeConverter *typeConverter = getTypeConverter();
-    TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
 
-    if (failed(typeConverter->convertSignatureArgs(op->getOperandTypes(), sig)))
+    Region r;
+
+    SmallVector<Type> inputTypes;
+    if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
       return failure();
+    inputTypes.push_back(rewriter.getNoneType());
 
-    //  add the ctrl input
-    sig.addInputs(adaptor.getOperands().size(), rewriter.getNoneType());
+    SmallVector<Location> argLocs(inputTypes.size(), loc);
 
-    // add filtering mechanism
     Block *entryBlock =
-        rewriter.applySignatureConversion(&r, sig, typeConverter);
+        rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
+    Value tupleIn = entryBlock->getArgument(0);
+    Value streamCtrl = entryBlock->getArgument(1);
+    Value initCtrl = entryBlock->getArgument(2);
 
-    auto unpack = unpackAndReplace(entryBlock->getArgument(0), loc, rewriter);
-    Value input = unpack.getResult(0);
+    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+    Value data = unpack.getResult(0);
     Value eos = unpack.getResult(1);
+
+    Block *lambda = &op.getRegion().front();
+    rewriter.mergeBlocks(lambda, entryBlock, ValueRange({data, streamCtrl}));
 
     Operation *oldTerm = entryBlock->getTerminator();
 
@@ -388,7 +393,7 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
     Value ctrl = oldTerm->getOperand(1);
 
     auto tupleOut =
-        rewriter.create<handshake::PackOp>(loc, ValueRange({input, eos}));
+        rewriter.create<handshake::PackOp>(loc, ValueRange({data, eos}));
 
     auto condOrEos = rewriter.create<arith::OrIOp>(loc, cond, eos);
 
@@ -400,18 +405,17 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
         rewriter.getUnknownLoc(), condOrEos, ctrl);
 
     SmallVector<Value> newTermOperands = {dataBr.trueResult(),
-                                          ctrlBr.trueResult()};
+                                          ctrlBr.trueResult(), initCtrl};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
-    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
-    operands.push_back(getCtrlSignal(adaptor.getOperands()));
+    SmallVector<Value> operands;
+    resolveNewOperands(op, adaptor.getOperands(), operands);
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
     FuncOp newFuncOp = createFuncOp(r, symbolUniquer.getUniqueSymName(op),
                                     entryBlock->getArgumentTypes(),
                                     newTerm.getOperandTypes(), rewriter);
-
     replaceWithInstance(op, newFuncOp, operands, rewriter);
     return success();
   }
@@ -760,7 +764,8 @@ static LogicalResult removeUnusedConversionCasts(ModuleOp m) {
   for (auto funcOp : m.getOps<handshake::FuncOp>()) {
     if (funcOp.isDeclaration()) continue;
     Region &funcRegion = funcOp.body();
-    for (auto op : funcRegion.getOps<UnrealizedConversionCastOp>()) {
+    for (auto op : llvm::make_early_inc_range(
+             funcRegion.getOps<UnrealizedConversionCastOp>())) {
       op->erase();
     }
   }
