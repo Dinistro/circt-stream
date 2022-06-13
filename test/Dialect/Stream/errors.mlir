@@ -123,3 +123,16 @@ func.func @split_wrong_yield_args(%in: !stream.stream<tuple<i32, i32>>) -> (!str
   }
   return %res0, %res1 : !stream.stream<i32>, !stream.stream<i32>
 }
+
+// -----
+
+func.func @combine_wrong_input_types(%in0: !stream.stream<i32>, %in1: !stream.stream<i32>) -> (!stream.stream<tuple<i32, i32>>) {
+  // expected-error @+1 {{expect the block argument #1 to have type 'i32', got 'i64' instead.}}
+    %res = stream.combine(%in0, %in1) : (!stream.stream<i32>, !stream.stream<i32>) -> (!stream.stream<tuple<i32, i32>>) {
+    ^0(%val0: i32, %val1: i64):
+      %0 = stream.pack %val0, %val0 : tuple<i32, i32>
+      stream.yield %0 : tuple<i32, i32>
+    }
+    return %res : !stream.stream<tuple<i32, i32>>
+  }
+
