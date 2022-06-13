@@ -12,9 +12,9 @@ module {
   }
 
 // CHECK:  handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none) attributes {argNames = ["in0", "in1", "inCtrl"], resNames = ["out0", "out1", "outCtrl"]} {
+// CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : none
 // CHECK-NEXT:    %{{.*}}:2 = unpack %{{.*}} : tuple<i32, i1>
 // CHECK-NEXT:    %{{.*}} = merge %{{.*}} : i32
-// CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : none
 // CHECK-NEXT:    %{{.*}} = constant %{{.*}}#0 {value = 1 : i32} : i32
 // CHECK-NEXT:    %{{.*}} = arith.addi %{{.*}}, %{{.*}} : i32
 // CHECK-NEXT:    %{{.*}} = pack %{{.*}}, %{{.*}} : tuple<i32, i1>

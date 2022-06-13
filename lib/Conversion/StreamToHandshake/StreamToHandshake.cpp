@@ -741,6 +741,21 @@ static LogicalResult materializeForksAndSinks(ModuleOp m) {
   return success();
 }
 
+/// Removes all forks and syncs as the insertion is not able to extend existing
+/// forks
+static LogicalResult dematerializeForksAndSinks(Region &r) {
+  for (auto sinkOp : llvm::make_early_inc_range(r.getOps<handshake::SinkOp>()))
+    sinkOp.erase();
+
+  for (auto forkOp :
+       llvm::make_early_inc_range(r.getOps<handshake::ForkOp>())) {
+    for (auto res : forkOp->getResults())
+      res.replaceAllUsesWith(forkOp.getOperand());
+    forkOp.erase();
+  }
+  return success();
+}
+
 // TODO Do this with an op trait?
 bool isStreamOp(Operation *op) {
   return isa<MapOp, FilterOp, ReduceOp, SplitOp>(op);
@@ -758,6 +773,7 @@ LogicalResult transformStdRegions(ModuleOp m) {
       for (auto &r : op.getRegions()) {
         StreamLowering sl(r);
         if (failed(lowerRegion<YieldOp>(sl, false, false))) return failure();
+        if (failed(dematerializeForksAndSinks(r))) return failure();
       }
     }
   }
@@ -784,6 +800,7 @@ class StreamToHandshakePass
       signalPassFailure();
       return;
     }
+
     StreamTypeConverter typeConverter;
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());

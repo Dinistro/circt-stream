@@ -12,11 +12,11 @@ module {
   }
 
   // CHECK: handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none)
+// CHECK-NEXT:   %{{.*}}:2 = fork [2] %{{.*}} : none
 // CHECK-NEXT:   %{{.*}}:2 = unpack %{{.*}} : tuple<i32, i1>
 // CHECK-NEXT:   %{{.*}}:2 = fork [2] %{{.*}} : i1
 // CHECK-NEXT:   %{{.*}}:2 = fork [2] %{{.*}} : i32
 // CHECK-NEXT:   %{{.*}} = merge %{{.*}}#0 : i32
-// CHECK-NEXT:   %{{.*}}:2 = fork [2] %{{.*}} : none
 // CHECK-NEXT:   %{{.*}} = constant %{{.*}}#0 {value = 0 : i32} : i32
 // CHECK-NEXT:   %{{.*}} = arith.cmpi sgt, %{{.*}}, %{{.*}} : i32
 // CHECK-NEXT:   %{{.*}} = pack %{{.*}}#1, %{{.*}}#1 : tuple<i32, i1>
