@@ -2,6 +2,7 @@ module driver();
   logic clock = 0;
   logic reset = 0;
   logic out0_valid, out0_ready;
+  logic out1_valid, out1_ready;
   logic [63:0] out0_data_field0;
   logic out0_data_field1;
   logic inCtrl_valid, inCtrl_ready;
@@ -18,6 +19,7 @@ module driver();
   initial begin
     inCtrl_valid = 1;
     out0_ready = 1;
+    out1_ready = 1;
     outCtrl_ready = 1;
 
     reset = 1;
