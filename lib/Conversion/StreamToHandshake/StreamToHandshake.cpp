@@ -435,56 +435,61 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
       ReduceOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Region &r = op.getRegion();
 
     TypeConverter *typeConverter = getTypeConverter();
-    Type tupleType = typeConverter->convertType(op.result().getType());
-    assert(tupleType.isa<TupleType>());
-    Type resultType = tupleType.dyn_cast<TupleType>().getType(0);
+    SmallVector<Type> resultTypes;
+    if (failed(typeConverter->convertType(op.result().getType(), resultTypes)))
+      return failure();
+
+    assert(resultTypes[0].isa<TupleType>());
+    Type resultType = resultTypes[0].dyn_cast<TupleType>().getType(0);
 
     // TODO: handshake currently only supports i64 buffers, change this as
     // soon as support for other types is added.
     assert(resultType == rewriter.getI64Type() &&
            "currently, only i64 buffers are supported");
 
-    TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 2);
-    sig.addInputs(0, resultType);
-    if (failed(
-            typeConverter->convertSignatureArgs(op->getOperandTypes(), sig, 1)))
-      return failure();
+    Region r;
 
-    //  add the ctrl input
-    sig.addInputs(adaptor.getOperands().size() + 1, rewriter.getNoneType());
+    SmallVector<Type> inputTypes;
+    if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
+      return failure();
+    inputTypes.push_back(rewriter.getNoneType());
+
+    SmallVector<Location> argLocs(inputTypes.size(), loc);
 
     Block *entryBlock =
-        rewriter.applySignatureConversion(&r, sig, typeConverter);
+        rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
+    Value tupleIn = entryBlock->getArgument(0);
+    Value streamCtrl = entryBlock->getArgument(1);
+    Value initCtrl = entryBlock->getArgument(2);
 
-    auto unpack = unpackAndReplace(entryBlock->getArgument(1), loc, rewriter);
-    Value eosIn = unpack.getResult(1);
+    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+    Value data = unpack.getResult(0);
+    Value eos = unpack.getResult(1);
 
-    Operation *oldTerm = entryBlock->getTerminator();
-    rewriter.setInsertionPoint(oldTerm);
+    Block *lambda = &op.getRegion().front();
+
+    Operation *oldTerm = lambda->getTerminator();
     auto buffer = rewriter.create<handshake::BufferOp>(
         rewriter.getUnknownLoc(), resultType, 1, oldTerm->getOperand(0),
         BufferTypeEnum::seq);
-
     // This does return an unsigned integer but expects signed integers
     // TODO check if this is an MLIR bug
     buffer->setAttr("initValues",
                     rewriter.getI64ArrayAttr({(int64_t)adaptor.initValue()}));
 
-    assert(eosIn.getType() == rewriter.getI1Type());
-
     auto dataBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), eosIn, buffer);
+        rewriter.getUnknownLoc(), eos, buffer);
     auto eosBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), eosIn, eosIn);
+        rewriter.getUnknownLoc(), eos, eos);
     auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), eosIn, oldTerm->getOperand(1));
+        rewriter.getUnknownLoc(), eos, oldTerm->getOperand(1));
 
-    rewriter.replaceUsesOfBlockArgument(entryBlock->getArgument(0),
-                                        dataBr.falseResult());
-    entryBlock->eraseArgument(0);
+    rewriter.mergeBlocks(lambda, entryBlock,
+                         ValueRange({dataBr.falseResult(), data, streamCtrl}));
+
+    rewriter.setInsertionPoint(oldTerm);
 
     // Connect outputs and ensure correct delay between value and EOS=true
     // emission A sequental buffer ensures a cycle delay of 1
@@ -512,13 +517,13 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     auto ctrlOut = rewriter.create<MuxOp>(
         loc, select, ValueRange({ctrlBr.trueResult(), ctrlBr.trueResult()}));
 
-    SmallVector<Value> newTermOperands = {tupleOut, ctrlOut};
+    SmallVector<Value> newTermOperands = {tupleOut, ctrlOut, initCtrl};
 
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
-    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
-    operands.push_back(getCtrlSignal(adaptor.getOperands()));
+    SmallVector<Value> operands;
+    resolveNewOperands(op, adaptor.getOperands(), operands);
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
     FuncOp newFuncOp = createFuncOp(r, symbolUniquer.getUniqueSymName(op),
