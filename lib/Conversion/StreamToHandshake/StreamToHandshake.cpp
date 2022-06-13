@@ -255,22 +255,13 @@ static InstanceOp replaceWithInstance(Operation *op, FuncOp func,
     auto tuple = *resultIt++;
     auto ctrl = *resultIt++;
 
-    auto castOp = rewriter.replaceOpWithNewOp<UnrealizedConversionCastOp>(
-        op, oldResType, ValueRange({tuple, ctrl}));
+    auto castOp = rewriter.create<UnrealizedConversionCastOp>(
+        op->getLoc(), oldResType, ValueRange({tuple, ctrl}));
     newValues.push_back(castOp.getResult(0));
   }
+  rewriter.replaceOp(op, newValues);
 
   return instance;
-}
-
-static handshake::UnpackOp unpackAndReplace(
-    BlockArgument arg, Location loc, ConversionPatternRewriter &rewriter) {
-  assert(arg.getType().isa<TupleType>() && "can only unpack tuple types");
-  Block *block = arg.getOwner();
-  rewriter.setInsertionPointToStart(block);
-  auto unpack = rewriter.create<handshake::UnpackOp>(loc, arg);
-  rewriter.replaceUsesOfBlockArgument(arg, unpack.getResult(0));
-  return unpack;
 }
 
 // Usual flow:
@@ -658,42 +649,50 @@ struct SplitOpLowering : public StreamOpLowering<SplitOp> {
       SplitOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Region &r = op.getRegion();
-
     TypeConverter *typeConverter = getTypeConverter();
-    TypeConverter::SignatureConversion sig(adaptor.getOperands().size() + 1);
 
-    if (failed(typeConverter->convertSignatureArgs(op->getOperandTypes(), sig)))
+    // create surrounding region
+    Region r;
+
+    SmallVector<Type> inputTypes;
+    if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
       return failure();
+    inputTypes.push_back(rewriter.getNoneType());
 
-    //  add the ctrl input
-    sig.addInputs(adaptor.getOperands().size(), rewriter.getNoneType());
+    SmallVector<Location> argLocs(inputTypes.size(), loc);
 
     Block *entryBlock =
-        rewriter.applySignatureConversion(&r, sig, typeConverter);
+        rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
+    Value tupleIn = entryBlock->getArgument(0);
+    Value streamCtrl = entryBlock->getArgument(1);
+    Value initCtrl = entryBlock->getArgument(2);
 
-    auto unpack = unpackAndReplace(entryBlock->getArgument(0), loc, rewriter);
+    auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
+    Value data = unpack.getResult(0);
     Value eos = unpack.getResult(1);
+
+    Block *lambda = &op.getRegion().front();
+    rewriter.mergeBlocks(lambda, entryBlock, ValueRange({data, streamCtrl}));
 
     Operation *oldTerm = entryBlock->getTerminator();
 
     rewriter.setInsertionPoint(oldTerm);
-    SmallVector<Value> newTermOperands = llvm::to_vector(
-        llvm::map_range(oldTerm->getOperands().drop_back(), [&](auto oldOp) {
-          return rewriter
-              .create<handshake::PackOp>(oldTerm->getLoc(),
-                                         ValueRange({oldOp, eos}))
-              .getResult();
-        }));
+    SmallVector<Value> newTermOperands;
+    for (auto oldOp : oldTerm->getOperands().drop_back()) {
+      auto pack = rewriter.create<handshake::PackOp>(oldTerm->getLoc(),
+                                                     ValueRange({oldOp, eos}));
+      newTermOperands.push_back(pack.getResult());
+      newTermOperands.push_back(oldTerm->getOperands().back());
+    }
 
-    newTermOperands.push_back(oldTerm->getOperands().back());
+    newTermOperands.push_back(initCtrl);
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
     TypeRange resTypes = newTerm->getOperandTypes();
 
-    SmallVector<Value> operands = llvm::to_vector(adaptor.getOperands());
-    operands.push_back(getCtrlSignal(adaptor.getOperands()));
+    SmallVector<Value> operands;
+    resolveNewOperands(op, adaptor.getOperands(), operands);
 
     rewriter.setInsertionPointToStart(getTopLevelBlock(op));
     FuncOp newFuncOp =
