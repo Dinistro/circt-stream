@@ -16,7 +16,7 @@ func.func @combined(%in: !stream.stream<i512>) -> !stream.stream<i512> {
   return %res : !stream.stream<i512>
 }
 
-// CHECK: handshake.func private @[[LABEL_FILTER:.*]](%{{.*}}: tuple<i512, i1>, %{{.*}}: none, ...) -> (tuple<i512, i1>, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
+// CHECK: handshake.func private @[[LABEL_FILTER:.*]](%{{.*}}: tuple<i512, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i512, i1>, none, none)
 // CHECK-NEXT:    %{{.*}}:2 = unpack %{{.*}} : tuple<i512, i1>
 // CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : i1
 // CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : i512
@@ -31,19 +31,19 @@ func.func @combined(%in: !stream.stream<i512>) -> !stream.stream<i512> {
 // CHECK-NEXT:    sink %{{.*}} : tuple<i512, i1>
 // CHECK-NEXT:    %{{.*}}, %{{.*}} = cond_br %{{.*}}#0, %{{.*}}#1 : none
 // CHECK-NEXT:    sink %{{.*}} : none
-// CHECK-NEXT:    return %{{.*}}, %{{.*}} : tuple<i512, i1>, none
+// CHECK-NEXT:    return %{{.*}}, %{{.*}}, %{{.*}} : tuple<i512, i1>, none, none
 // CHECK-NEXT:  }
-// CHECK-NEXT:  handshake.func private @[[LABEL_MAP:.*]](%{{.*}}: tuple<i512, i1>, %{{.*}}: none, ...) -> (tuple<i512, i1>, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
+// CHECK-NEXT:  handshake.func private @[[LABEL_MAP:.*]](%{{.*}}: tuple<i512, i1>, %{{.*}}: none, %{{.*}}, ...) -> (tuple<i512, i1>, none, none)
 // CHECK-NEXT:    %{{.*}}:2 = unpack %{{.*}} : tuple<i512, i1>
 // CHECK-NEXT:    %{{.*}} = merge %{{.*}} : i512
 // CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : none
 // CHECK-NEXT:    %{{.*}} = constant %{{.*}}#0 {value = 42 : i512} : i512
 // CHECK-NEXT:    %{{.*}} = arith.addi %{{.*}}, %{{.*}} : i512
 // CHECK-NEXT:    %{{.*}} = pack %{{.*}}, %{{.*}} : tuple<i512, i1>
-// CHECK-NEXT:    return %{{.*}}, %{{.*}}#1 : tuple<i512, i1>, none
+// CHECK-NEXT:    return %{{.*}}, %{{.*}}#1, %{{.*}} : tuple<i512, i1>, none, none
 // CHECK-NEXT:  }
-// CHECK-NEXT:  handshake.func @combined(%{{.*}}: tuple<i512, i1>, %{{.*}}: none, ...) -> (tuple<i512, i1>, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
-// CHECK-NEXT:    %{{.*}}:2 = instance @[[LABEL_MAP]](%{{.*}}, %{{.*}}) : (tuple<i512, i1>, none) -> (tuple<i512, i1>, none)
-// CHECK-NEXT:    %{{.*}}:2 = instance @[[LABEL_FILTER]](%{{.*}}#0, %{{.*}}#1) : (tuple<i512, i1>, none) -> (tuple<i512, i1>, none)
-// CHECK-NEXT:    return %{{.*}}#0, %{{.*}}#1 : tuple<i512, i1>, none
+// CHECK-NEXT:  handshake.func @combined(%{{.*}}: tuple<i512, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i512, i1>, none, none)
+// CHECK-NEXT:    %{{.*}}:3 = instance @[[LABEL_MAP]](%{{.*}}, %{{.*}}, %{{.*}}) : (tuple<i512, i1>, none, none) -> (tuple<i512, i1>, none, none)
+// CHECK-NEXT:    %{{.*}}:3 = instance @[[LABEL_FILTER]](%{{.*}}#0, %{{.*}}#1, %{{.*}}#2) : (tuple<i512, i1>, none, none) -> (tuple<i512, i1>, none, none)
+// CHECK-NEXT:    return %{{.*}}#0, %{{.*}}#1, %{{.*}}#2 : tuple<i512, i1>, none, none
 // CHECK-NEXT:  }
