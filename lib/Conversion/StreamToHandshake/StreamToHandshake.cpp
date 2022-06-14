@@ -914,11 +914,15 @@ public:
     target.addIllegalDialect<StreamDialect>();
 
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns))))
+                                      std::move(patterns)))) {
       signalPassFailure();
+      return;
+    }
 
-    if (failed(removeUnusedConversionCasts(getOperation())))
+    if (failed(removeUnusedConversionCasts(getOperation()))) {
       signalPassFailure();
+      return;
+    }
 
     if (failed(materializeForksAndSinks(getOperation())))
       signalPassFailure();
