@@ -16,5 +16,4 @@
 #define GET_TYPEDEF_CLASSES
 #include "circt-stream/Dialect/Stream/StreamOpsTypes.h.inc"
 
-#endif  // CIRCT_STREAM_DIALECT_STREAM_TYPES_H
-
+#endif // CIRCT_STREAM_DIALECT_STREAM_TYPES_H

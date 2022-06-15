@@ -10,8 +10,8 @@
 
 #include "circt-stream/Dialect/Stream/StreamOps.h"
 #include "circt-stream/Dialect/Stream/StreamTypes.h"
-#include "llvm/ADT/TypeSwitch.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace circt_stream;
