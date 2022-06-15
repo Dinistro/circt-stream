@@ -73,10 +73,12 @@ static Type getElementType(Type streamType) {
 static LogicalResult verifyRegion(Operation *op, Region &r,
                                   TypeRange inputTypes, TypeRange returnTypes) {
   // Check arguments
-  if (failed(verifyRegionArgs(op, inputTypes, r))) return failure();
+  if (failed(verifyRegionArgs(op, inputTypes, r)))
+    return failure();
 
   // Check terminator
-  if (failed(verifyYieldOperands(op, returnTypes, r))) return failure();
+  if (failed(verifyYieldOperands(op, returnTypes, r)))
+    return failure();
 
   return success();
 }
@@ -123,7 +125,8 @@ ParseResult UnpackOp::parse(OpAsmParser &parser, OperationState &result) {
       parser.parseType(type))
     return failure();
 
-  if (parser.resolveOperand(tuple, type, result.operands)) return failure();
+  if (parser.resolveOperand(tuple, type, result.operands))
+    return failure();
 
   result.addTypes(type.getTypes());
 
@@ -162,10 +165,12 @@ void PackOp::print(OpAsmPrinter &p) {
 }
 
 ParseResult CreateOp::parse(OpAsmParser &parser, OperationState &result) {
-  if (failed(parser.parseOptionalAttrDict(result.attributes))) return failure();
+  if (failed(parser.parseOptionalAttrDict(result.attributes)))
+    return failure();
 
   StreamType type;
-  if (parser.parseType(type)) return failure();
+  if (parser.parseType(type))
+    return failure();
 
   result.addTypes(type);
 
@@ -175,17 +180,20 @@ ParseResult CreateOp::parse(OpAsmParser &parser, OperationState &result) {
                             "can only create streams of integers");
 
   SmallVector<Attribute> elements;
-  if (parser.parseLSquare()) return failure();
+  if (parser.parseLSquare())
+    return failure();
 
   if (parser.parseCommaSeparatedList([&]() {
         APInt element(elementType.getIntOrFloatBitWidth(), 0);
-        if (parser.parseInteger(element)) return failure();
+        if (parser.parseInteger(element))
+          return failure();
         elements.push_back(IntegerAttr::get(elementType, element));
         return success();
       }))
     return failure();
 
-  if (parser.parseRSquare()) return failure();
+  if (parser.parseRSquare())
+    return failure();
 
   result.addAttribute("values", ArrayAttr::get(parser.getContext(), elements));
   return success();

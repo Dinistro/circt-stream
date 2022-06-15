@@ -17,7 +17,6 @@ namespace circt_stream {
 #define GEN_PASS_REGISTRATION
 #include "circt-stream/Conversion/Passes.h.inc"
 
-}  // namespace circt_stream
+} // namespace circt_stream
 
-#endif  // CIRCT_STREAM_CONVERSION_PASSES_H
-
+#endif // CIRCT_STREAM_CONVERSION_PASSES_H

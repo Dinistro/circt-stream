@@ -13,4 +13,4 @@
 // Do not remove, otherwise includes will be reorder and this breaks everything
 #include "circt-stream/Dialect/Stream/StreamOpsDialect.h.inc"
 
-#endif  // CIRCT_STREAM_DIALECT_STREAM_H
+#endif // CIRCT_STREAM_DIALECT_STREAM_H

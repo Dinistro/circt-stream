@@ -23,4 +23,4 @@ class Pass;
 namespace circt_stream {
 std::unique_ptr<mlir::Pass> createStreamToHandshakePass();
 }
-#endif  // CIRCT_STREAM_CONVERSION_STREAMTOHANDSHAKE_H_
+#endif // CIRCT_STREAM_CONVERSION_STREAMTOHANDSHAKE_H_

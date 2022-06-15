@@ -20,4 +20,4 @@
 #define GET_OP_CLASSES
 #include "circt-stream/Dialect/Stream/StreamOps.h.inc"
 
-#endif  // CIRCT_STREAM_DIALECT_STREAM_OPS_H
+#endif // CIRCT_STREAM_DIALECT_STREAM_OPS_H
