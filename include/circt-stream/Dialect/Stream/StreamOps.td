@@ -256,4 +256,24 @@ def CombineOp : Stream_Op<"combine", [SingleBlockImplicitTerminator<"stream::Yie
   let hasRegionVerifier = 1;
 }
 
+def SinkOp : Stream_Op<"sink", [
+  NoSideEffect
+]> {
+  let summary = "consumes elements of the input stream";
+  let description = [{
+    "stream.sink" consumes all elements of the input stream while not having any output.
+
+    Example:
+    ```mlir
+    stream.sink %in : !stream.stream<i64>
+    ```
+    }];
+
+  let arguments = (ins StreamType:$input);
+
+  let assemblyFormat = [{
+    $input attr-dict `:` qualified(type($input))
+  }];
+}
+
 #endif // CIRCT_STREAM_DIALECT_STREAM_OPS_TD

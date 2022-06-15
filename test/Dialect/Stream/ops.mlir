@@ -114,4 +114,14 @@ module {
   // CHECK-NEXT:   }
   // CHECK-NEXT:   return %{{.*}} : !stream.stream<tuple<i32, i32>>
   // CHECK-NEXT: }
+
+  func.func @sink(%in: !stream.stream<i32>) {
+    stream.sink %in : !stream.stream<i32>
+    return
+  }
+
+  // CHECK:      func.func @sink(%{{.*}}: !stream.stream<i32>) {
+  // CHECK-NEXT:   stream.sink %{{.*}} : !stream.stream<i32>
+  // CHECK-NEXT:   return
+  // CHECK-NEXT: }
 }
