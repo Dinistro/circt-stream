@@ -796,6 +796,48 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
   }
 };
 
+struct SinkOpLowering : public StreamOpLowering<stream::SinkOp> {
+  using StreamOpLowering::StreamOpLowering;
+
+  LogicalResult
+  matchAndRewrite(stream::SinkOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+
+    Region r;
+
+    SmallVector<Type> inputTypes;
+    if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
+      return failure();
+    inputTypes.push_back(rewriter.getNoneType());
+
+    SmallVector<Location> argLocs(inputTypes.size(), loc);
+
+    Block *entryBlock =
+        rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
+
+    // Don't use the values to ensure that handshake::SinkOps will be inserted
+    Value initCtrl = entryBlock->getArguments().back();
+    auto newTerm =
+        rewriter.create<handshake::ReturnOp>(loc, ValueRange(initCtrl));
+
+    TypeRange resTypes = newTerm->getOperandTypes();
+
+    SmallVector<Value> operands;
+    resolveNewOperands(op, adaptor.getOperands(), operands);
+
+    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
+    FuncOp newFuncOp =
+        createFuncOp(r, symbolUniquer.getUniqueSymName(op),
+                     entryBlock->getArgumentTypes(), resTypes, rewriter);
+
+    replaceWithInstance(op, newFuncOp, operands, rewriter);
+
+    return success();
+  }
+};
+
 static void
 populateStreamToHandshakePatterns(StreamTypeConverter &typeConverter,
                                   SymbolUniquer symbolUniquer,
@@ -814,7 +856,8 @@ populateStreamToHandshakePatterns(StreamTypeConverter &typeConverter,
     ReduceOpLowering,
     CreateOpLowering,
     SplitOpLowering,
-    CombineOpLowering
+    CombineOpLowering,
+    SinkOpLowering
   >(typeConverter, patterns.getContext(), symbolUniquer);
   // clang-format on
 }
