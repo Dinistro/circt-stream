@@ -16,7 +16,7 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 
-def MapOp : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
+def MapOp : Stream_Op<"map", []> {
   let summary = "applies the region on each element";
   let description = [{
     `stream.map` applies the provided region on each element of the input
@@ -45,7 +45,7 @@ def MapOp : Stream_Op<"map", [SingleBlockImplicitTerminator<"stream::YieldOp">]>
   let hasRegionVerifier = 1;
 }
 
-def FilterOp : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
+def FilterOp : Stream_Op<"filter", []> {
   let summary = "filters a stream with the provided predicate";
   let description = [{
     `stream.filter` applies the provided region on each element of the input
@@ -75,7 +75,7 @@ def FilterOp : Stream_Op<"filter", [SingleBlockImplicitTerminator<"stream::Yield
   let hasRegionVerifier = 1;
 }
 
-def ReduceOp : Stream_Op<"reduce", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
+def ReduceOp : Stream_Op<"reduce", []> {
   let summary = "reduces the stream with the provided region";
   let description = [{
     `stream.reduce` folds the stream to a single value by applying the provided
@@ -200,7 +200,7 @@ def CreateOp : Stream_Op<"create", [
   let hasVerifier = 1;
 }
 
-def SplitOp : Stream_Op<"split", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
+def SplitOp : Stream_Op<"split", []> {
   let summary = "for each input produces outputs for each output stream.";
   let description = [{
     `stream.split` takes one input stream and produces multiple output streams.
@@ -228,7 +228,7 @@ def SplitOp : Stream_Op<"split", [SingleBlockImplicitTerminator<"stream::YieldOp
   let hasRegionVerifier = 1;
 }
 
-def CombineOp : Stream_Op<"combine", [SingleBlockImplicitTerminator<"stream::YieldOp">]> {
+def CombineOp : Stream_Op<"combine", []> {
   let summary = "combines elements from all incomming stream to one output element";
   let description = [{
     `stream.combine` takes a variable number of input stream and produces one output stream.
