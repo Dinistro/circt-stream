@@ -914,6 +914,7 @@ LogicalResult transformStdRegions(ModuleOp m) {
           return failure();
         if (failed(dematerializeForksAndSinks(r)))
           return failure();
+        removeBasicBlocks(r);
       }
     }
   }
