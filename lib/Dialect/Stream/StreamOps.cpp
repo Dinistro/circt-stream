@@ -87,7 +87,14 @@ static LogicalResult verifyRegion(Operation *op, Region &r,
 /// elements with the type of the output stream.
 static LogicalResult verifyRegion(Operation *op, Region &r) {
   SmallVector<Type> inputTypes =
-      llvm::to_vector(llvm::map_range(op->getOperandTypes(), getElementType));
+      llvm::to_vector(llvm::map_range(op->getOperandTypes(), [&](Type t) {
+        if (t.isa<StreamType>()) {
+          return getElementType(t);
+        }
+        // TODO rewrite this
+        assert(t.isa<MemRefType>());
+        return t;
+      }));
 
   SmallVector<Type> returnTypes =
       llvm::to_vector(llvm::map_range(op->getResultTypes(), getElementType));

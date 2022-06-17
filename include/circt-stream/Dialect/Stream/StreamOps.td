@@ -34,12 +34,12 @@ def MapOp : Stream_Op<"map", []> {
     ```
   }];
 
-  let arguments = (ins StreamType:$input);
+  let arguments = (ins StreamType:$input, Variadic<Builtin_MemRef>:$memrefs);
   let results = (outs StreamType:$res);
   let regions = (region AnyRegion:$region);
 
   let assemblyFormat = [{
-    `(` $input `)` attr-dict `:` functional-type($input, $res) $region
+    `(` operands `)` attr-dict `:` functional-type(operands, $res) $region
   }];
 
   let hasRegionVerifier = 1;
@@ -155,7 +155,7 @@ def PackOp : Stream_Op<"pack", [
 
 def YieldOp : Stream_Op<"yield", [
     NoSideEffect, ReturnLike, Terminator,
-    ParentOneOf<["MapOp, FilterOp, ReduceOp, SplitOp, CombineOp"]>
+    ParentOneOf<["MapOp, FilterOp, ReduceOp, SplitOp, CombineOp, MemoryOp"]>
 ]> {
   let summary = "stream yield and termination operation";
   let description = [{
@@ -273,6 +273,22 @@ def SinkOp : Stream_Op<"sink", [
 
   let assemblyFormat = [{
     $input attr-dict `:` qualified(type($input))
+  }];
+}
+
+def MemoryOp : Stream_Op<"memory", [
+  NoSideEffect
+]> {
+  let summary = "introduces memory and optionaly initializes it";
+  let description = [{
+      TODO
+    }];
+
+  let results = (outs Builtin_MemRef:$result);
+  let regions = (region VariadicRegion<AnyRegion>:$region);
+
+  let assemblyFormat = [{
+    attr-dict `:` qualified(type($result)) $region
   }];
 }
 

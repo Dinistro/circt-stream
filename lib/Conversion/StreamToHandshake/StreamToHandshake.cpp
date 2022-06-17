@@ -25,6 +25,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -188,8 +189,15 @@ static void resolveNewOperands(Operation *oldOperation,
                                ValueRange remappedOperands,
                                SmallVectorImpl<Value> &newOperands) {
   for (auto [oldOp, remappedOp] :
-       llvm::zip(oldOperation->getOperands(), remappedOperands))
-    resolveStreamOperand(remappedOp, newOperands);
+       llvm::zip(oldOperation->getOperands(), remappedOperands)) {
+    if (remappedOp.getType().isa<StreamType>()) {
+      resolveStreamOperand(remappedOp, newOperands);
+    } else if (remappedOp.getType().isa<MemRefType>()) {
+      newOperands.push_back(remappedOp);
+    } else {
+      llvm_unreachable("Unsupported type");
+    }
+  }
 
   // Resolve the init ctrl signal
   if (remappedOperands.size() == 0) {
@@ -307,14 +315,26 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
         rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
     Value tupleIn = entryBlock->getArgument(0);
     Value streamCtrl = entryBlock->getArgument(1);
-    Value initCtrl = entryBlock->getArgument(2);
+    Value initCtrl = entryBlock->getArguments().back();
 
     auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
     Value data = unpack.getResult(0);
     Value eos = unpack.getResult(1);
 
     Block *lambda = &op.getRegion().front();
-    rewriter.mergeBlocks(lambda, entryBlock, ValueRange({data, streamCtrl}));
+    SmallVector<Value> blockArgs;
+    blockArgs.push_back(data);
+
+    // Add memrefs
+    for (unsigned i = 2; i < entryBlock->getNumArguments() - 1; ++i) {
+      Value arg = entryBlock->getArgument(i);
+      assert(arg.getType().isa<MemRefType>());
+      blockArgs.push_back(arg);
+    }
+    blockArgs.push_back(streamCtrl);
+
+    rewriter.mergeBlocks(lambda, entryBlock,
+                         blockArgs); // ValueRange({data, streamCtrl}));
 
     Operation *oldTerm = entryBlock->getTerminator();
 
@@ -838,6 +858,40 @@ struct SinkOpLowering : public StreamOpLowering<stream::SinkOp> {
   }
 };
 
+struct MemoryOpLowering : public StreamOpLowering<stream::MemoryOp> {
+  using StreamOpLowering::StreamOpLowering;
+
+  LogicalResult
+  matchAndRewrite(stream::MemoryOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+
+    assert(!op.region().empty());
+
+    Region &r = op.getRegion(0);
+    Block *entryBlock = &r.front();
+
+    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
+    FuncOp newFuncOp = createFuncOp(r, symbolUniquer.getUniqueSymName(op),
+                                    entryBlock->getArgumentTypes(),
+                                    {rewriter.getNoneType()}, rewriter);
+    SmallVector<Value> operands;
+    // resolveNewOperands(op, adaptor.getOperands(), operands);
+
+    rewriter.setInsertionPoint(op);
+    auto mem = rewriter.create<memref::AllocOp>(
+        loc, op.getResult().getType().cast<MemRefType>());
+    rewriter.create<handshake::MemoryOp>(loc, ValueRange(), 1, 1, false, 0,
+                                         mem);
+    // replaceWithInstance(op, newFuncOp, operands, rewriter);
+    rewriter.replaceOp(op, mem.getResult());
+
+    // mem->getParentOp()->dump();
+    return success();
+  }
+};
+
 static void
 populateStreamToHandshakePatterns(StreamTypeConverter &typeConverter,
                                   SymbolUniquer symbolUniquer,
@@ -857,7 +911,8 @@ populateStreamToHandshakePatterns(StreamTypeConverter &typeConverter,
     CreateOpLowering,
     SplitOpLowering,
     CombineOpLowering,
-    SinkOpLowering
+    SinkOpLowering,
+    MemoryOpLowering
   >(typeConverter, patterns.getContext(), symbolUniquer);
   // clang-format on
 }
@@ -894,7 +949,8 @@ static LogicalResult dematerializeForksAndSinks(Region &r) {
 
 // TODO Do this with an op trait?
 bool isStreamOp(Operation *op) {
-  return isa<MapOp, FilterOp, ReduceOp, SplitOp, CombineOp>(op);
+  return isa<MapOp, FilterOp, ReduceOp, SplitOp, CombineOp, stream::MemoryOp>(
+      op);
 }
 
 /// Traverses the modules region recursively and applies the std to handshake
@@ -956,6 +1012,8 @@ public:
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addIllegalDialect<func::FuncDialect>();
     target.addIllegalDialect<StreamDialect>();
+    // TODO do we even need this?
+    target.addLegalOp<memref::AllocOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
