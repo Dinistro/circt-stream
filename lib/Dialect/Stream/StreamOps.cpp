@@ -139,6 +139,17 @@ void UnpackOp::print(OpAsmPrinter &p) {
   p << " : " << input().getType();
 }
 
+LogicalResult UnpackOp::canonicalize(UnpackOp op, PatternRewriter &rewriter) {
+  PackOp tuple = dyn_cast_or_null<PackOp>(op.input().getDefiningOp());
+  if (!tuple)
+    return failure();
+
+  for (size_t idx = 0; idx < op->getNumResults(); idx++) {
+    op->getOpResult(idx).replaceAllUsesWith(tuple.inputs()[idx]);
+  }
+  return success();
+}
+
 ParseResult PackOp::parse(OpAsmParser &parser, OperationState &result) {
   SmallVector<OpAsmParser::UnresolvedOperand, 4> operands;
   llvm::SMLoc allOperandLoc = parser.getCurrentLocation();
@@ -162,6 +173,27 @@ void PackOp::print(OpAsmPrinter &p) {
   p << " " << inputs();
   p.printOptionalAttrDict((*this)->getAttrs());
   p << " : " << result().getType();
+}
+
+LogicalResult PackOp::canonicalize(PackOp op, PatternRewriter &rewriter) {
+  if (op.inputs().size() == 0)
+    return failure();
+
+  Operation *singleDefiningOp = op.inputs()[0].getDefiningOp();
+
+  if (!llvm::all_of(op.inputs(), [singleDefiningOp](Value input) {
+        return input.getDefiningOp() == singleDefiningOp;
+      }))
+    return failure();
+
+  UnpackOp unpackDefiningOp = dyn_cast_or_null<UnpackOp>(singleDefiningOp);
+
+  if (!unpackDefiningOp)
+    return failure();
+
+  op.result().replaceAllUsesWith(unpackDefiningOp.input());
+
+  return success();
 }
 
 ParseResult CreateOp::parse(OpAsmParser &parser, OperationState &result) {
