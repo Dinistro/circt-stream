@@ -139,20 +139,20 @@ void UnpackOp::print(OpAsmPrinter &p) {
   p << " : " << input().getType();
 }
 
+/// Replaces unnecessary `stream.unpack` when its operand is the result of a
+/// `stream.pack` operation. In the following snippet, all uses of `%a2` and
+/// `%b2` are replaced with `%a` and `%b` respectively.
+///
+/// ```
+///   %tuple = stream.pack %a, %b {attributes} : tuple<i32, i64>
+///   %a2, %b2 = stream.unpack %tuple {attributes} : tuple<i32, i64>
+///   // ... some ops using %a2, %b2
+/// ```
 LogicalResult UnpackOp::canonicalize(UnpackOp op, PatternRewriter &rewriter) {
-
-  // Replaces unnecessary `stream.unpack` when its operand is the result of a `stream.pack` operation.
-  // In the following snippet, all uses of `%a2` and `%b2` are replaced with `%a` and `%b` respectively.
-  //
-  // ```
-  //   %tuple = stream.pack %a, %b {attributes} : tuple<i32, i64>
-  //   %a2, %b2 = stream.unpack %tuple {attributes} : tuple<i32, i64>
-  //   // ... some ops using %a2, %b2
-  // ```
-
   PackOp tuple = dyn_cast_or_null<PackOp>(op.input().getDefiningOp());
   if (!tuple)
     return failure();
+
   rewriter.replaceOp(op, tuple.inputs());
   return success();
 }
@@ -182,16 +182,16 @@ void PackOp::print(OpAsmPrinter &p) {
   p << " : " << result().getType();
 }
 
+/// Replaces an unnecessary `stream.pack` when it's operands are results of a
+/// `stream.unpack` op. In the following snippet, all uses of `%tuple2` are
+/// replaced with `%tuple`.
+///
+/// ```
+///   %a, %b = stream.unpack %tuple {attributes} : tuple<i32, i64>
+///   %tuple2 = stream.pack %a, %b {attributes} : tuple<i32, i64>
+///   // ... some ops using %tuple2
+/// ```
 LogicalResult PackOp::canonicalize(PackOp op, PatternRewriter &rewriter) {
-  // Replaces an unnecessary `stream.pack` when it's operands are results of a `stream.unpack` op.
-  // In the following snippet, all uses of `%tuple2` are replaced with `%tuple`.
-  //
-  // ```
-  //   %a, %b = stream.unpack %tuple {attributes} : tuple<i32, i64>
-  //   %tuple2 = stream.pack %a, %b {attributes} : tuple<i32, i64>
-  //   // ... some ops using %tuple2
-  // ```
-
   if (op.inputs().size() == 0)
     return failure();
 
@@ -206,9 +206,8 @@ LogicalResult PackOp::canonicalize(PackOp op, PatternRewriter &rewriter) {
 
   if (!unpackDefiningOp)
     return failure();
-  
-  rewriter.replaceOp(op, unpackDefiningOp.input());
 
+  rewriter.replaceOp(op, unpackDefiningOp.input());
   return success();
 }
 
