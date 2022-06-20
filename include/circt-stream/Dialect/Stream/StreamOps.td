@@ -128,6 +128,8 @@ def UnpackOp : Stream_Op<"unpack", [
   let results = (outs Variadic<AnyType>:$results);
 
   let hasCustomAssemblyFormat = 1;
+
+  let hasCanonicalizeMethod = 1;
 }
 
 def PackOp : Stream_Op<"pack", [
@@ -151,6 +153,8 @@ def PackOp : Stream_Op<"pack", [
   let results = (outs Builtin_Tuple:$result);
 
   let hasCustomAssemblyFormat = 1;
+
+  let hasCanonicalizeMethod = 1;
 }
 
 def YieldOp : Stream_Op<"yield", [
