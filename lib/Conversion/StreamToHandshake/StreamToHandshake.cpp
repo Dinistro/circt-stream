@@ -28,6 +28,7 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/FormatVariadic.h"
 
 using namespace circt;
@@ -48,36 +49,39 @@ static std::string getBareOpName(Operation *op) {
 
 /// Helper class that provides functionality for creating unique symbol names.
 /// One instance is shared among all patterns.
-class SymbolUniquer : public SymbolCache {
+/// The uniquer remembers all symbols and new ones by checking that they do not
+/// exist yet.
+class SymbolUniquer {
 public:
   SymbolUniquer(Operation *top) : context(top->getContext()) {
     addDefinitions(top);
   }
 
-  mlir::Operation *getDefinition(StringRef str) const {
-    auto attr = StringAttr::get(context, str);
-    return SymbolCache::getDefinition(attr);
+  void addDefinitions(mlir::Operation *top) {
+    for (auto &region : top->getRegions())
+      for (auto &block : region.getBlocks())
+        for (auto symOp : block.getOps<mlir::SymbolOpInterface>())
+          addSymbol(symOp.getName().str());
   }
 
-  // TODO: does this have to be thread save?
   std::string getUniqueSymName(Operation *op) {
     std::string opName = getBareOpName(op);
     std::string name = opName;
 
     unsigned cnt = 1;
-    while (getDefinition(name)) {
+    while (usedNames.contains(name)) {
       name = llvm::formatv("{0}_{1}", opName, cnt++);
     }
-    // Note: We do not add the actual op matching the symbol
-    auto attr = StringAttr::get(context, name);
-    // TODO: dropping the `SymbolCache::` causes a segfault -> investigate
-    SymbolCache::addDefinition(attr, op);
+    addSymbol(name);
 
     return name;
   }
 
+  void addSymbol(std::string name) { usedNames.insert(name); }
+
 private:
   MLIRContext *context;
+  llvm::SmallSet<std::string, 8> usedNames;
 };
 
 class StreamTypeConverter : public TypeConverter {
