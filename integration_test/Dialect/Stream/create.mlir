@@ -3,8 +3,8 @@
 // RUN:   --canonicalize='top-down=true region-simplify=true' \
 // RUN:   --handshake-materialize-forks-sinks --canonicalize \
 // RUN:   --handshake-insert-buffers=strategy=all --lower-handshake-to-firrtl | \
-// RUN: firtool --format=mlir --verilog > %create-export.sv && \
-// RUN: circt-rtl-sim.py %create-export.sv %S/driver_out_i64.sv %S/driver.cpp --no-default-driver --top driver | FileCheck %s
+// RUN: firtool --format=mlir --verilog > %t.sv && \
+// RUN: circt-rtl-sim.py %t.sv %S/driver_out_i64.sv %S/driver.cpp --no-default-driver --top driver | FileCheck %s
 // CHECK:      Element={{.*}}1
 // CHECK-NEXT: Element={{.*}}2
 // CHECK-NEXT: Element={{.*}}3
