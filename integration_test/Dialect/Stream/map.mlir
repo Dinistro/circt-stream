@@ -1,10 +1,10 @@
-// REQUIRES: ieee-sim
+// REQUIRES: verilator
 // RUN: stream-opt %s --convert-stream-to-handshake \
 // RUN:   --canonicalize='top-down=true region-simplify=true' \
 // RUN:   --handshake-materialize-forks-sinks --canonicalize \
 // RUN:   --handshake-insert-buffers=strategy=all --lower-handshake-to-firrtl | \
 // RUN: firtool --format=mlir --verilog > %map-export.sv && \
-// RUN: circt-rtl-sim.py %map-export.sv %S/driver_out_i64.sv --sim %ieee-sim --no-default-driver --top driver | FileCheck %s
+// RUN: circt-rtl-sim.py %map-export.sv %S/driver_out_i64.sv %S/driver.cpp --no-default-driver --top driver | FileCheck %s
 // CHECK:      Element={{.*}}11
 // CHECK-NEXT: Element={{.*}}12
 // CHECK-NEXT: Element={{.*}}13
