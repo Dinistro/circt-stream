@@ -52,7 +52,7 @@ module driver(
           s0_done = 1;
         end
       end
-      if(out1_valid == 1 && s1_done == 0) begin
+      if(out2_valid == 1 && s1_done == 0) begin
         if(out2_data_field1 == 0) begin
           $display("S1: Element=%d", out2_data_field0);
         end
