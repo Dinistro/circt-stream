@@ -1,12 +1,11 @@
-// REQUIRES: ieee-sim
+// REQUIRES: verilator
 // RUN: stream-opt %s --convert-stream-to-handshake \
 // RUN:   --canonicalize='top-down=true region-simplify=true' \
 // RUN:   --handshake-materialize-forks-sinks --canonicalize \
 // RUN:   --handshake-insert-buffers=strategy=all --lower-handshake-to-firrtl | \
 // RUN: firtool --format=mlir --verilog > %\combine-export.sv && \
-// RUN: circt-rtl-sim.py %\combine-export.sv %S/driver_out_i64.sv --sim %ieee-sim --no-default-driver --top driver | FileCheck %s
-// CHECK:     ## run -all
-// CHECK-NEXT: Element={{.*}}11
+// RUN: circt-rtl-sim.py %\combine-export.sv %S/driver_out_i64.sv %S/driver.cpp --no-default-driver --top driver | FileCheck %s
+// CHECK: Element={{.*}}11
 // CHECK-NEXT: Element={{.*}}13
 // CHECK-NEXT: Element={{.*}}15
 // CHECK-NEXT: EOS
