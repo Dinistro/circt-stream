@@ -25,10 +25,12 @@ module driver(
   always @(posedge clock) begin
     if(reset == 1) begin
       inCtrl_valid = 1;
-      out0_ready = 1;
-      out1_ready = 1;
-      out2_ready = 1;
-      out3_ready = 1;
+      // not yet ready ro receive results
+      out0_ready = 0;
+      out1_ready = 0;
+      out2_ready = 0;
+      out3_ready = 0;
+
       outCtrl_ready = 1;
 
       state = 1;
@@ -40,9 +42,16 @@ module driver(
     else if(state == 2) begin
       // sets valid to 0 to make sure the ctrl signal was only fired once.
       inCtrl_valid = 0;
+
+      // now ready to receive elements
+      out0_ready = 1;
+      out1_ready = 1;
+      out2_ready = 1;
+      out3_ready = 1;
+
       state = 3;
     end
-    else begin
+    begin
       if(out0_valid == 1 && s0_done == 0) begin
         if(out0_data_field1 == 0) begin
           $display("S0: Element=%d", out0_data_field0);
