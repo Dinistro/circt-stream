@@ -588,7 +588,8 @@ struct CreateOpLowering : public StreamOpLowering<CreateOp> {
     // Ctrl "looping" and selection
     // We have to change the input later on
     auto tmpCtrl = rewriter.create<NeverOp>(loc, rewriter.getNoneType());
-    auto ctrlBuf = rewriter.create<BufferOp>(loc, rewriter.getNoneType(), 1,
+
+    auto ctrlBuf = rewriter.create<BufferOp>(loc, rewriter.getNoneType(), 2,
                                              tmpCtrl, BufferTypeEnum::seq);
     auto ctrl = rewriter.create<MergeOp>(
         loc, ValueRange({useCtrl.trueResult(), ctrlBuf}));

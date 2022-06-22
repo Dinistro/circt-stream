@@ -10,7 +10,7 @@ func.func @create() -> !stream.stream<i32> {
 // CHECK-NEXT:    %{{.*}} = buffer [1] seq %{{.*}} {initValues = [1]} : i1
 // CHECK-NEXT:    %{{.*}}, %{{.*}} = cond_br %{{.*}}, %{{.*}}#0 : none
 // CHECK-NEXT:    sink %{{.*}} : none
-// CHECK-NEXT:    %{{.*}} = buffer [1] seq %{{.*}}#0 : none
+// CHECK-NEXT:    %{{.*}} = buffer [2] seq %{{.*}}#0 : none
 // CHECK-NEXT:    %{{.*}} = merge %{{.*}}, %{{.*}} : none
 // CHECK-NEXT:    %{{.*}}:5 = fork [5] %{{.*}} : none
 // CHECK-NEXT:    %{{.*}} = constant %{{.*}}#4 {value = 0 : i32} : i32
