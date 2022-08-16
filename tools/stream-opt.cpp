@@ -51,15 +51,14 @@ int main(int argc, char **argv) {
     circt::llhd::LLHDDialect,
     circt::hw::HWDialect,
     circt::seq::SeqDialect,
-    circt::staticlogic::StaticLogicDialect,
+    circt::pipeline::PipelineDialect,
     circt::sv::SVDialect
   >();
   // clang-format on
 
-  circt::registerAffineToStaticLogicPass();
+  circt::registerAffineToPipelinePass();
   circt::registerConvertHWToLLHDPass();
   circt::registerConvertLLHDToLLVMPass();
-  circt::registerCreatePipelinePass();
   circt::registerExportSplitVerilogPass();
   circt::registerExportVerilogPass();
   circt::registerHandshakeRemoveBlockPass();
