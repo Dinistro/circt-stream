@@ -10,7 +10,7 @@ set(LIBS
         MLIRSCF
         MLIRSCFToControlFlow
 
-        CIRCTAffineToStaticLogic
+        CIRCTAffineToPipeline
         CIRCTAnalysisTestPasses
         CIRCTExportVerilog
         CIRCTFIRRTL
@@ -31,8 +31,7 @@ set(LIBS
         CIRCTSeq
         CIRCTSeqTransforms
         CIRCTStandardToHandshake
-        CIRCTStandardToStaticLogic
-        CIRCTStaticLogicOps
+        CIRCTPipelineOps
         CIRCTSV
         CIRCTSVTransforms
         CIRCTTransforms

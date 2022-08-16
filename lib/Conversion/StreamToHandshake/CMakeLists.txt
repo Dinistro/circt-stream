@@ -9,8 +9,8 @@ add_mlir_library(CIRCTStreamStreamToHandshake
   MLIRPass
   MLIRSupport
   MLIRTransforms
-  MLIRControlFlow
-  MLIRFunc
+  MLIRControlFlowDialect
+  MLIRFuncDialect
 
   CIRCTHandshake
   )
