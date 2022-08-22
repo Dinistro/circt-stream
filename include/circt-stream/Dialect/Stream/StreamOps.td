@@ -16,6 +16,9 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 
+// TODO Refine this to ensure that each element holds data and a type
+def RegisterAttr : OptionalAttr<ArrayAttr>;
+
 def MapOp : Stream_Op<"map", []> {
   let summary = "applies the region on each element";
   let description = [{
@@ -34,7 +37,7 @@ def MapOp : Stream_Op<"map", []> {
     ```
   }];
 
-  let arguments = (ins StreamType:$input);
+  let arguments = (ins StreamType:$input, RegisterAttr:$registers);
   let results = (outs StreamType:$res);
   let regions = (region AnyRegion:$region);
 
@@ -64,7 +67,7 @@ def FilterOp : Stream_Op<"filter", []> {
     ```
   }];
 
-  let arguments = (ins StreamType:$input);
+  let arguments = (ins StreamType:$input, RegisterAttr:$registers);
   let results = (outs StreamType:$res);
   let regions = (region AnyRegion:$region);
 
@@ -94,7 +97,8 @@ def ReduceOp : Stream_Op<"reduce", []> {
 
   let arguments = (
     ins StreamType:$input,
-    I64Attr:$initValue);
+    I64Attr:$initValue, 
+    RegisterAttr:$registers);
 
   let results = (outs StreamType:$result);
   let regions = (region AnyRegion:$region);
@@ -221,7 +225,7 @@ def SplitOp : Stream_Op<"split", []> {
     ```
     }];
 
-  let arguments = (ins StreamType:$input);
+  let arguments = (ins StreamType:$input, RegisterAttr:$registers);
   let results = (outs Variadic<StreamType>:$results);
   let regions = (region AnyRegion:$region);
 
@@ -249,7 +253,7 @@ def CombineOp : Stream_Op<"combine", []> {
     ```
     }];
 
-  let arguments = (ins Variadic<StreamType>:$inputs);
+  let arguments = (ins Variadic<StreamType>:$inputs, RegisterAttr:$registers);
   let results = (outs StreamType:$result);
   let regions = (region AnyRegion:$region);
 

@@ -15,6 +15,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Support/LogicalResult.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace circt_stream;
@@ -85,35 +86,79 @@ static LogicalResult verifyRegion(Operation *op, Region &r,
 
 /// Verifies that a region can handle the input streams and always returns
 /// elements with the type of the output stream.
-static LogicalResult verifyRegion(Operation *op, Region &r) {
+static LogicalResult verifyDefaultRegion(Operation *op, Region &r,
+                                         TypeRange registerTypes = {}) {
+  // TODO where to append them?
   SmallVector<Type> inputTypes =
       llvm::to_vector(llvm::map_range(op->getOperandTypes(), getElementType));
+  llvm::copy(registerTypes, std::back_inserter(inputTypes));
 
   SmallVector<Type> returnTypes =
       llvm::to_vector(llvm::map_range(op->getResultTypes(), getElementType));
+  llvm::copy(registerTypes, std::back_inserter(returnTypes));
 
   return verifyRegion(op, r, inputTypes, returnTypes);
 }
 
+template <typename TOp>
+static LogicalResult getRegTypes(TOp op, SmallVectorImpl<Type> &regTypes) {
+  Optional<ArrayAttr> regTypeAttr = op.registers();
+  if (regTypeAttr.has_value()) {
+    for (auto attr : *regTypeAttr) {
+      auto res = llvm::TypeSwitch<Attribute, LogicalResult>(attr)
+                     .Case<IntegerAttr>([&](auto intAttr) {
+                       regTypes.push_back(intAttr.getType());
+                       return success();
+                     })
+                     .Default([&](Attribute) {
+                       return op->emitError("unsupported register type");
+                     });
+      if (failed(res))
+        return failure();
+    }
+  }
+  return success();
+}
+
 LogicalResult MapOp::verifyRegions() {
-  return verifyRegion(getOperation(), region());
+  SmallVector<Type> regTypes;
+  if (failed(getRegTypes(*this, regTypes)))
+    return failure();
+
+  return verifyDefaultRegion(getOperation(), region(), regTypes);
 }
 
 LogicalResult FilterOp::verifyRegions() {
   SmallVector<Type> inputTypes = llvm::to_vector(
       llvm::map_range((*this)->getOperandTypes(), getElementType));
 
-  Type boolType = IntegerType::get(this->getContext(), 1);
+  SmallVector<Type> regTypes;
+  if (failed(getRegTypes(*this, regTypes)))
+    return failure();
+  llvm::copy(regTypes, std::back_inserter(inputTypes));
 
-  return verifyRegion(getOperation(), region(), inputTypes, boolType);
+  SmallVector<Type> resultTypes;
+  resultTypes.push_back(IntegerType::get(this->getContext(), 1));
+  llvm::copy(regTypes, std::back_inserter(resultTypes));
+
+  return verifyRegion(getOperation(), region(), inputTypes, resultTypes);
 }
 
 LogicalResult ReduceOp::verifyRegions() {
+  SmallVector<Type> regTypes;
+  if (failed(getRegTypes(*this, regTypes)))
+    return failure();
+
   Type inputType = getElementType(input().getType());
   Type accType = getElementType(result().getType());
 
-  return verifyRegion(getOperation(), region(), TypeRange({inputType, accType}),
-                      accType);
+  SmallVector<Type> inputTypes = {inputType, accType};
+  llvm::copy(regTypes, std::back_inserter(inputTypes));
+
+  SmallVector<Type> resultTypes = {accType};
+  llvm::copy(regTypes, std::back_inserter(resultTypes));
+
+  return verifyRegion(getOperation(), region(), inputTypes, resultTypes);
 }
 
 ParseResult UnpackOp::parse(OpAsmParser &parser, OperationState &result) {
@@ -285,9 +330,15 @@ LogicalResult CreateOp::verify() {
 }
 
 LogicalResult SplitOp::verifyRegions() {
-  return verifyRegion(getOperation(), region());
+  SmallVector<Type> regTypes;
+  if (failed(getRegTypes(*this, regTypes)))
+    return failure();
+  return verifyDefaultRegion(getOperation(), region(), regTypes);
 }
 
 LogicalResult CombineOp::verifyRegions() {
-  return verifyRegion(getOperation(), region());
+  SmallVector<Type> regTypes;
+  if (failed(getRegTypes(*this, regTypes)))
+    return failure();
+  return verifyDefaultRegion(getOperation(), region(), regTypes);
 }
