@@ -97,7 +97,7 @@ def ReduceOp : Stream_Op<"reduce", []> {
 
   let arguments = (
     ins StreamType:$input,
-    I64Attr:$initValue, 
+    I64Attr:$initValue,
     RegisterAttr:$registers);
 
   let results = (outs StreamType:$result);
