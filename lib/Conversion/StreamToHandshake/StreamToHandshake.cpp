@@ -20,6 +20,7 @@
 #include "circt/Conversion/StandardToHandshake.h"
 #include "circt/Dialect/Handshake/HandshakeDialect.h"
 #include "circt/Dialect/Handshake/HandshakeOps.h"
+#include "circt/Support/BackedgeBuilder.h"
 #include "circt/Support/SymCache.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
@@ -29,6 +30,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
 
 using namespace circt;
@@ -286,6 +288,85 @@ struct StreamOpLowering : public OpConversionPattern<Op> {
   SymbolUniquer &symbolUniquer;
 };
 
+/// Helper function that collects the required info to build registers.
+/// TODO: once buffers support other initial values, this has to be added here.
+template <typename TOp>
+static LogicalResult getRegInfos(TOp op,
+                                 SmallVectorImpl<IntegerAttr> &regTypes) {
+  Optional<ArrayAttr> regTypeAttr = op.registers();
+  if (regTypeAttr.has_value()) {
+    for (auto attr : *regTypeAttr) {
+      auto res = llvm::TypeSwitch<Attribute, LogicalResult>(attr)
+                     .Case<IntegerAttr>([&](auto intAttr) {
+                       regTypes.push_back(intAttr);
+                       return success();
+                     })
+                     .Default([&](Attribute) {
+                       return op->emitError("unsupported register type");
+                     });
+      if (failed(res))
+        // TODO: this should be checked by a verifier
+        return failure();
+    }
+  }
+  return success();
+}
+
+/// A helper class to build registers. Tracks the state for building backedges
+/// correctly.
+class RegisterBuilder {
+  RegisterBuilder(ConversionPatternRewriter &rewriter)
+      : rewriter(rewriter), backBuilder(rewriter, rewriter.getUnknownLoc()) {}
+
+public:
+  template <typename TOp>
+  static FailureOr<RegisterBuilder> create(ConversionPatternRewriter &rewriter,
+                                           TOp op) {
+    RegisterBuilder regBuilder(rewriter);
+    if (failed(getRegInfos(op, regBuilder.regInfos)))
+      return failure();
+
+    return regBuilder;
+  }
+
+private:
+  // TODO initialValue type: handshake buffers do currently only support
+  // integers
+  BufferOp buildRegister(Type type, int64_t initialValue, Value input) {
+    auto buffer = rewriter.create<handshake::BufferOp>(
+        rewriter.getUnknownLoc(), type, 1, input, BufferTypeEnum::seq);
+    // This does return an unsigned integer but expects signed integers
+    // TODO check if this is an MLIR bug
+    buffer->setAttr("initValues", rewriter.getI64ArrayAttr({initialValue}));
+    return buffer;
+  }
+
+public:
+  // Binds the provided values to the registers previously created.
+  void bindRegInputs(ValueRange inputs) {
+    // Connect the back edges
+    for (auto [backEdge, input] : llvm::zip(backEdges, inputs))
+      backEdge.setValue(input);
+  }
+
+  // Builds the registers with the collected regInfo.
+  void buildRegisters(SmallVectorImpl<Value> &regs) {
+    for (auto regInfo : regInfos) {
+      Type regType = regInfo.getType();
+      Value input = backEdges.emplace_back(backBuilder.get(regType));
+      auto reg = buildRegister(regType, regInfo.getInt(), input);
+      regs.push_back(reg);
+    }
+  }
+
+  size_t getNumRegisters() const { return regInfos.size(); }
+
+private:
+  ConversionPatternRewriter &rewriter;
+  SmallVector<IntegerAttr> regInfos;
+  BackedgeBuilder backBuilder;
+  SmallVector<Backedge> backEdges;
+};
 // Builds a handshake::FuncOp and that represents the mapping funtion. This
 // function is then instantiated and connected to its inputs and outputs.
 struct MapOpLowering : public StreamOpLowering<MapOp> {
@@ -318,16 +399,31 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
     Value eos = unpack.getResult(1);
 
     Block *lambda = &op.getRegion().front();
-    rewriter.mergeBlocks(lambda, entryBlock, ValueRange({data, streamCtrl}));
+    SmallVector<Value> lambdaIns;
+    lambdaIns.push_back(data);
+
+    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    if (failed(regBuilder))
+      return failure();
+
+    regBuilder->buildRegisters(lambdaIns);
+
+    // Ctrl is at the end, due to a handshake limitation
+    lambdaIns.push_back(streamCtrl);
+
+    rewriter.setInsertionPointToStart(entryBlock);
+    rewriter.mergeBlocks(lambda, entryBlock, lambdaIns);
 
     Operation *oldTerm = entryBlock->getTerminator();
+
+    regBuilder->bindRegInputs(llvm::drop_begin(oldTerm->getOperands(), 1));
 
     rewriter.setInsertionPoint(oldTerm);
     auto tupleOut = rewriter.create<handshake::PackOp>(
         oldTerm->getLoc(), ValueRange({oldTerm->getOperand(0), eos}));
 
-    SmallVector<Value> newTermOperands = {tupleOut, oldTerm->getOperand(1),
-                                          initCtrl};
+    SmallVector<Value> newTermOperands = {
+        tupleOut, oldTerm->getOperands().back(), initCtrl};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
@@ -376,16 +472,28 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
     Value eos = unpack.getResult(1);
 
     Block *lambda = &op.getRegion().front();
-    rewriter.mergeBlocks(lambda, entryBlock, ValueRange({data, streamCtrl}));
+    SmallVector<Value> lambdaIns;
+    lambdaIns.push_back(data);
+
+    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    if (failed(regBuilder))
+      return failure();
+
+    regBuilder->buildRegisters(lambdaIns);
+
+    // Ctrl is at the end, due to a handshake limitation
+    lambdaIns.push_back(streamCtrl);
+    rewriter.mergeBlocks(lambda, entryBlock, lambdaIns);
 
     Operation *oldTerm = entryBlock->getTerminator();
 
-    assert(oldTerm->getNumOperands() == 2 &&
-           "expected handshake::ReturnOp to have two operands");
+    // Connect the back edges
+    regBuilder->bindRegInputs(llvm::drop_begin(oldTerm->getOperands(), 1));
+
     rewriter.setInsertionPointToEnd(entryBlock);
 
     Value cond = oldTerm->getOperand(0);
-    Value ctrl = oldTerm->getOperand(1);
+    Value ctrl = oldTerm->getOperands().back();
 
     auto tupleOut =
         rewriter.create<handshake::PackOp>(loc, ValueRange({data, eos}));
@@ -479,10 +587,21 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     auto eosBr = rewriter.create<handshake::ConditionalBranchOp>(
         rewriter.getUnknownLoc(), eos, eos);
     auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), eos, oldTerm->getOperand(1));
+        rewriter.getUnknownLoc(), eos, oldTerm->getOperands().back());
 
-    rewriter.mergeBlocks(lambda, entryBlock,
-                         ValueRange({dataBr.falseResult(), data, streamCtrl}));
+    SmallVector<Value> lambdaIns = {dataBr.falseResult(), data};
+
+    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    if (failed(regBuilder))
+      return failure();
+
+    regBuilder->buildRegisters(lambdaIns);
+
+    lambdaIns.push_back(streamCtrl);
+    rewriter.mergeBlocks(lambda, entryBlock, lambdaIns);
+
+    // Connect the back edges
+    regBuilder->bindRegInputs(llvm::drop_begin(oldTerm->getOperands(), 1));
 
     rewriter.setInsertionPoint(oldTerm);
 
@@ -677,13 +796,29 @@ struct SplitOpLowering : public StreamOpLowering<SplitOp> {
     Value eos = unpack.getResult(1);
 
     Block *lambda = &op.getRegion().front();
-    rewriter.mergeBlocks(lambda, entryBlock, ValueRange({data, streamCtrl}));
+    SmallVector<Value> lambdaIns = {data};
+
+    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    if (failed(regBuilder))
+      return failure();
+
+    regBuilder->buildRegisters(lambdaIns);
+
+    lambdaIns.push_back(streamCtrl);
+    rewriter.mergeBlocks(lambda, entryBlock, lambdaIns);
 
     Operation *oldTerm = entryBlock->getTerminator();
+    size_t numRegs = regBuilder->getNumRegisters();
+    size_t numOuts = oldTerm->getNumOperands() - 1 - numRegs;
+
+    // Connect the back edges
+    regBuilder->bindRegInputs(
+        llvm::drop_begin(oldTerm->getOperands(), numOuts));
 
     rewriter.setInsertionPoint(oldTerm);
+
     SmallVector<Value> newTermOperands;
-    for (auto oldOp : oldTerm->getOperands().drop_back()) {
+    for (auto oldOp : llvm::drop_end(oldTerm->getOperands(), numRegs + 1)) {
       auto pack = rewriter.create<handshake::PackOp>(oldTerm->getLoc(),
                                                      ValueRange({oldOp, eos}));
       newTermOperands.push_back(pack.getResult());
@@ -758,16 +893,29 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
       ctrlInputs.push_back(streamCtrl);
       eosInputs.push_back(eos);
     }
+    Block *lambda = &op.getRegion().front();
+
+    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    if (failed(regBuilder))
+      return failure();
+
+    regBuilder->buildRegisters(blockInputs);
+
     Value initCtrl = entryBlock->getArguments().back();
 
     // only execute region when ALL inputs are ready
     auto ctrlJoin = rewriter.create<JoinOp>(loc, ctrlInputs);
     blockInputs.push_back(ctrlJoin);
-    Block *lambda = &op.getRegion().front();
 
     rewriter.mergeBlocks(lambda, entryBlock, blockInputs);
 
     Operation *oldTerm = entryBlock->getTerminator();
+    size_t numRegs = regBuilder->getNumRegisters();
+    size_t numOuts = oldTerm->getNumOperands() - 1 - numRegs;
+
+    // Connect the back edges
+    regBuilder->bindRegInputs(
+        llvm::drop_begin(oldTerm->getOperands(), numOuts));
     rewriter.setInsertionPoint(oldTerm);
 
     // TODO What to do when not all streams provide an eos signal
