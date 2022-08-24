@@ -1,25 +1,34 @@
-// REQUIRES: verilator
+// REQUIRES: cocotb, iverilog
+
 // RUN: stream-opt %s --convert-stream-to-handshake \
 // RUN:   --canonicalize='top-down=true region-simplify=true' \
 // RUN:   --handshake-materialize-forks-sinks --canonicalize \
 // RUN:   --handshake-insert-buffers=strategy=all --lower-handshake-to-firrtl | \
-// RUN: firtool --format=mlir --verilog > %t.sv && \
-// RUN: circt-rtl-sim.py %t.sv %S/driver_out_i64_i64.sv %S/driver.cpp --no-default-driver --top driver | FileCheck %s
+// RUN: firtool --format=mlir --lowering-options=disallowLocalVariables --verilog > %t.sv && \
+// RUN: %PYTHON% %S/cocotb_driver.py --objdir=%t.sv.d/ --topLevel=top --pythonModule=cocotb_bench --pythonFolder=%S --testcase=multipleOut %t.sv 2>&1 | FileCheck %s
+
 // RUN: stream-opt %s --convert-stream-to-handshake \
 // RUN:   --canonicalize='top-down=true region-simplify=true' \
 // RUN:   --handshake-materialize-forks-sinks --canonicalize \
 // RUN:   --handshake-insert-buffers=strategy=allFIFO --lower-handshake-to-firrtl | \
-// RUN: firtool --format=mlir --verilog > %t.sv && \
-// RUN: circt-rtl-sim.py %t.sv %S/driver_out_i64_i64.sv %S/driver.cpp --no-default-driver --top driver | FileCheck %s
-// CHECK-DAG: S0: Element={{.*}}1
-// CHECK-DAG: S0: Element={{.*}}2
-// CHECK-DAG: S0: Element={{.*}}3
-// CHECK-DAG: S1: Element={{.*}}1
-// CHECK-DAG: S1: Element={{.*}}3
-// CHECK-DAG: S1: Element={{.*}}5
-// CHECK-NOT: ensures that the later appears after the former
-// CHECK-DAG: S0: EOS
-// CHECK-DAG: S1: EOS
+// RUN: firtool --format=mlir --lowering-options=disallowLocalVariables --verilog > %t.sv && \
+// RUN: %PYTHON% %S/cocotb_driver.py --objdir=%t.sv.d/ --topLevel=top --pythonModule=cocotb_bench --pythonFolder=%S --testcase=multipleOut %t.sv 2>&1 | FileCheck %s
+
+// RUN: stream-opt %s --convert-stream-to-handshake \
+// RUN:   --canonicalize='top-down=true region-simplify=true' \
+// RUN:   --handshake-materialize-forks-sinks --canonicalize \
+// RUN:   --handshake-insert-buffers=strategy=cycles --lower-handshake-to-firrtl | \
+// RUN: firtool --format=mlir --lowering-options=disallowLocalVariables --verilog > %t.sv && \
+// RUN: %PYTHON% %S/cocotb_driver.py --objdir=%t.sv.d/ --topLevel=top --pythonModule=cocotb_bench --pythonFolder=%S --testcase=multipleOut %t.sv 2>&1 | FileCheck %s
+
+// CHECK:      S0: Element=1
+// CHECK-NEXT: S0: Element=2
+// CHECK-NEXT: S0: Element=3
+// CHECK-NEXT: S0: EOS
+// CHECK-NEXT: S1: Element=1
+// CHECK-NEXT: S1: Element=3
+// CHECK-NEXT: S1: Element=5
+// CHECK-NEXT: S1: EOS
 
 module {
   func.func @top() -> (!stream.stream<i64>, !stream.stream<i64>) {
