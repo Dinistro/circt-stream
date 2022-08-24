@@ -68,6 +68,44 @@ else()
   message(STATUS "Did not find Verilator.")
 endif()
 
+#-------------------------------------------------------------------------------
+# Icarus Verilog Configuration
+#-------------------------------------------------------------------------------
+
+# If Icarus Verilog hasn't been explicitly disabled, find it.
+option(IVERILOG_DISABLE "Disable the Icarus Verilog tests.")
+if (IVERILOG_DISABLE)
+  message(STATUS "Disabling Icarus Verilog tests.")
+else()
+  find_program(IVERILOG_PATH "iverilog")
+  if(EXISTS ${IVERILOG_PATH})
+    # Find iverilog version.
+    execute_process(COMMAND ${IVERILOG_PATH} -V
+      OUTPUT_VARIABLE IVERILOG_VERSION)
+
+    string(REGEX MATCH "Icarus Verilog version (([0-9]+)\.([0-9]+)) \.*"
+      MATCH ${IVERILOG_VERSION})
+
+    if (${CMAKE_MATCH_1} LESS 11.0)
+      message(FATAL_ERROR "CIRCT only supports Icarus Verilog version 11.0 and up. \
+                           Found version: ${CMAKE_MATCH_1}. You can disable \
+                           the Icarus Verilog tests with '-DIVERILOG_DISABLE=ON'.")
+      set(IVERILOG_PATH "")
+    endif()
+    message(STATUS "Found iverilog at ${IVERILOG_PATH}.")
+  else()
+    set(IVERILOG_PATH "")
+    message(STATUS "Did not find iverilog.")
+  endif()
+endif()
+
+
+find_package(Python3)
+if(Python3_FOUND)
+  message(STATUS "Found python at ${Python3_EXECUTABLE}")
+endif()
+
+
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 include_directories(${CIRCT_INCLUDE_DIRS})

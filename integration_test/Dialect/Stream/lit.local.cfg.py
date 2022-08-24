@@ -1,3 +1,3 @@
-config.excludes.add('driver_out_i64.sv')
-config.excludes.add('driver_out_i64_i64.sv')
-config.excludes.add('driver.cpp')
+config.excludes.add('cocotb_bench.py')
+config.excludes.add('cocotb_driver.py')
+config.excludes.add('helper.py')

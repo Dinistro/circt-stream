@@ -35,7 +35,6 @@ config.substitutions.append(('%PATH%', config.environment['PATH']))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 config.substitutions.append(('%shlibdir', config.circt_shlib_dir))
 config.substitutions.append(('%INC%', config.circt_include_dir))
-config.substitutions.append(('%PYTHON%', config.python_executable))
 config.substitutions.append(
     ('%TCL_PATH%', config.circt_src_root + '/build/lib/Bindings/Tcl/'))
 config.substitutions.append(('%PROJECT_SOURCE%', config.project_src_root))
@@ -71,8 +70,16 @@ tool_dirs = [
     config.llvm_tools_dir, config.project_tools_dir
 ]
 tools = [
-    'stream-opt', 'firtool', 'circt-rtl-sim.py',
+    'stream-opt',
+    'firtool',
+    'circt-rtl-sim.py',
 ]
+
+# Enable python if its path was configured
+if config.python_executable != "":
+  tool_dirs.append(os.path.dirname(config.python_executable))
+  config.available_features.add('python')
+  config.substitutions.append(('%PYTHON%', config.python_executable))
 
 # Enable Verilator if it has been detected.
 if config.verilator_path != "":
@@ -92,8 +99,16 @@ if config.vivado_path != "":
   config.available_features.add('vivado')
   config.substitutions.append(
       ('%ieee-sim', os.path.join(config.vivado_path, "xsim")))
-  config.substitutions.append(('%xsim%', os.path.join(config.vivado_path,
-                                                      "xsim")))
+  config.substitutions.append(
+      ('%xsim%', os.path.join(config.vivado_path, "xsim")))
+
+# Enable Icarus Verilog as a fallback if no other ieee-sim was detected.
+if config.iverilog_path != "":
+  tool_dirs.append(os.path.dirname(config.iverilog_path))
+  tools.append('iverilog')
+  tools.append('vvp')
+  config.available_features.add('iverilog')
+  config.substitutions.append(('%iverilog', config.iverilog_path))
 
 ieee_sims = list(filter(lambda x: x[0] == '%ieee-sim', config.substitutions))
 if len(ieee_sims) > 1:
@@ -102,3 +117,13 @@ if len(ieee_sims) > 1:
   )
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
+# cocotb availability
+
+
+llvm_config.add_tool_substitutions(tools, tool_dirs)
+try:
+  import cocotb
+  import cocotb_test
+  config.available_features.add('cocotb')
+except ImportError:
+  pass
