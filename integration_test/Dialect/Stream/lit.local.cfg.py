@@ -1,3 +1,5 @@
 config.excludes.add('cocotb_bench.py')
 config.excludes.add('cocotb_driver.py')
 config.excludes.add('helper.py')
+config.excludes.add('projection.py')
+config.excludes.add('projection-with-reg.py')
