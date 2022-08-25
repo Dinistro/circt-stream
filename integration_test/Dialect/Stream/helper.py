@@ -1,4 +1,6 @@
+import cocotb
 from cocotb.triggers import RisingEdge
+import re
 
 
 class HandshakePort:
@@ -101,7 +103,7 @@ class HandshakeDataPort(HandshakePort):
       val = self.data.value.integer
       res.append(val)
       await RisingEdge(self.dut.clock)
-      if(checkFunc(res, val)):
+      if (checkFunc(res, val)):
         break
     return res
 
@@ -118,21 +120,33 @@ class HandshakeTuplePort(HandshakePort):
   def isCtrl(self):
     return False
 
+  def _assignTupleValue(self, val, curr):
+    assert (len(list(val)) == len(curr))
+    for (f, v) in zip(curr, list(val)):
+      if (isinstance(f, list)):
+        assert isinstance(v, tuple)
+        self._assignTupleValue(v, f)
+      else:
+        assert not isinstance(v, tuple)
+        f.value = v
+
   async def send(self, val):
-    assert (len(list(val)) == len(self.fields))
-    for (f, v) in zip(self.fields, list(val)):
-      f.value = v
+    self._assignTupleValue(val, self.fields)
 
     await super().send()
+
+  def _collectValRec(self, curr):
+    if not isinstance(curr, list):
+      return curr.value.integer
+    return tuple([self._collectValRec(f) for f in curr])
 
   async def checkOutputs(self, results):
     assert (self.isReady())
     for res in results:
       await self.waitUntilValid()
+      val = self._collectValRec(self.fields)
+      assert (res == val)
 
-      assert (len(list(res)) == len(self.fields))
-      for (f, r) in zip(self.fields, list(res)):
-        assert (f.value == r)
       await RisingEdge(self.dut.clock)
 
   async def collectNOutputs(self, n):
@@ -140,7 +154,7 @@ class HandshakeTuplePort(HandshakePort):
     res = []
     for _ in range(n):
       await self.waitUntilValid()
-      t = tuple([f.value.integer for f in self.fields])
+      t = self._collectValRec(self.fields)
       res.append(t)
       await RisingEdge(self.dut.clock)
     return res
@@ -153,9 +167,40 @@ class HandshakeTuplePort(HandshakePort):
       t = tuple([f.value.integer for f in self.fields])
       res.append(t)
       await RisingEdge(self.dut.clock)
-      if(checkFunc(res, t)):
+      if (checkFunc(res, t)):
         break
     return res
+
+
+def buildTupleStructure(dut, tupleFields, prefix):
+  """
+  Helper that builds a neasted list structure that represents the nester tuple
+
+structure of the inputs.
+  """
+  size = 0
+  while True:
+    r = re.compile(f"{prefix}_field{size}")
+    found = False
+    for f in tupleFields:
+      if r.match(f):
+        found = True
+        break
+
+    if not found:
+      break
+    size += 1
+
+  res = []
+  for i in range(size):
+    fName = f"{prefix}_field{i}"
+    if fName in tupleFields:
+      res.append(getattr(dut, fName))
+      continue
+
+    res.append(buildTupleStructure(dut, tupleFields, fName))
+
+  return res
 
 
 def _findPort(dut, name):
@@ -180,14 +225,14 @@ def _findPort(dut, name):
 
   isCtrl = not hasattr(dut, f"{name}_data_field0")
 
+  r = re.compile(f"^{name}_data_field")
+  tupleFields = [f for f in dir(dut) if r.match(f)]
+  isCtrl = not any(tupleFields)
+
   if (isCtrl):
     return HandshakePort(dut, ready, valid)
 
-  fields = []
-  i = 0
-  while hasattr(dut, f"{name}_data_field{i}"):
-    fields.append(getattr(dut, f"{name}_data_field{i}"))
-    i += 1
+  fields = buildTupleStructure(dut, tupleFields, f"{name}_data")
 
   return HandshakeTuplePort(dut, ready, valid, fields)
 
@@ -199,3 +244,41 @@ def getPorts(dut, inNames, outNames):
   ins = [_findPort(dut, name) for name in inNames]
   outs = [_findPort(dut, name) for name in outNames]
   return ins, outs
+
+
+class Stream:
+  """
+  Class that encapsulates all the handshake ports for a stream
+  """
+
+  def __init__(self, dataPort, ctrlPort):
+    self.dataPort = dataPort
+    self.ctrlPort = ctrlPort
+
+  async def sendData(self, data):
+    ds = cocotb.start_soon(self.dataPort.send((data, 0)))
+    cs = cocotb.start_soon(self.ctrlPort.send())
+    await ds
+    await cs
+
+  def _buildSentinel(self, fields):
+    if not isinstance(fields, list):
+      return 0
+    return tuple([self._buildSentinel(f) for f in fields])
+
+  async def sendEOS(self):
+    data = cocotb.start_soon(
+        self.dataPort.send((self._buildSentinel(self.dataPort.fields[0]), 1)))
+    ctrl = cocotb.start_soon(self.ctrlPort.send())
+    await data
+    await ctrl
+
+  async def checkOutputs(self, results):
+    resWithEOS = [(d, 0) for d in results]
+    data = cocotb.start_soon(self.dataPort.checkOutputs(resWithEOS))
+    ctrl = cocotb.start_soon(self.ctrlPort.awaitNOutputs(len(resWithEOS) + 1))
+    await data
+    [(_, eos)] = await cocotb.start_soon(self.dataPort.collectNOutputs(1))
+    assert eos == 1
+
+    await ctrl
