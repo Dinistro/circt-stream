@@ -991,19 +991,6 @@ struct SinkOpLowering : public StreamOpLowering<stream::SinkOp> {
   }
 };
 
-// TODO somehow expose this in CIRCT's std-to-handshake
-struct ConvertSelectOps : public OpConversionPattern<mlir::arith::SelectOp> {
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(mlir::arith::SelectOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<handshake::SelectOp>(op, adaptor.getCondition(),
-                                                     adaptor.getFalseValue(),
-                                                     adaptor.getTrueValue());
-    return success();
-  };
-};
-
 static void
 populateStreamToHandshakePatterns(StreamTypeConverter &typeConverter,
                                   SymbolUniquer symbolUniquer,
@@ -1013,8 +1000,7 @@ populateStreamToHandshakePatterns(StreamTypeConverter &typeConverter,
     FuncOpLowering,
     ReturnOpLowering,
     PackOpLowering,
-    UnpackOpLowering,
-    ConvertSelectOps
+    UnpackOpLowering
   >(typeConverter, patterns.getContext());
 
   patterns.add<
@@ -1119,7 +1105,6 @@ public:
     populateStreamToHandshakePatterns(typeConverter, symbolUniquer, patterns);
     target.addLegalOp<ModuleOp>();
     target.addLegalOp<UnrealizedConversionCastOp>();
-    target.addIllegalOp<arith::SelectOp>();
     target.addLegalDialect<handshake::HandshakeDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addIllegalDialect<func::FuncDialect>();
@@ -1136,7 +1121,12 @@ public:
       return;
     }
 
-    if (failed(materializeForksAndSinks(getOperation())))
+    if (failed(materializeForksAndSinks(getOperation()))) {
+      signalPassFailure();
+      return;
+    }
+
+    if (failed(postDataflowConvert(getOperation())))
       signalPassFailure();
   }
 };
