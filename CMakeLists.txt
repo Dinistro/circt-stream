@@ -26,47 +26,6 @@ include(HandleLLVMOptions)
 
 
 set(PROJECT_TOOLS_DIR ${CMAKE_BINARY_DIR}/bin)
-if (EXISTS ${VIVADO_PATH})
-  get_filename_component(VIVADO_PATH ${VIVADO_PATH} DIRECTORY)
-  message(STATUS "Setting vivado path to ${VIVADO_PATH}.")
-else()
-  # Search for vivado's `vivado` command.
-  find_program(VIVADO_PATH "vivado")
-  if(EXISTS ${VIVADO_PATH})
-    # Then strip the filename.
-    get_filename_component(VIVADO_PATH ${VIVADO_PATH} DIRECTORY)
-    message(STATUS "Found vivado at ${VIVADO_PATH}.")
-  else()
-    set(VIVADO_PATH "")
-    message(STATUS "Did not find vivado.")
-  endif()
-endif()
-
-if (NOT DEFINED VERILATOR_PATH)
-  find_program(VERILATOR_PATH "verilator" PATHS
-    "${CMAKE_CURRENT_SOURCE_DIR}/ext/bin" NO_DEFAULT_PATH)
-  find_program(VERILATOR_PATH "verilator")
-endif()
-
-if(EXISTS ${VERILATOR_PATH})
-  message(STATUS "Found Verilator at ${VERILATOR_PATH}.")
-
-  # Find Verilator version.
-  execute_process(COMMAND ${VERILATOR_PATH} --version
-    OUTPUT_VARIABLE VERILATOR_VERSION)
-  string(REGEX MATCH "Verilator (([0-9]+)\.([0-9]+)) \.*"
-    MATCH ${VERILATOR_VERSION})
-  # It's gotta be at least v4.110.
-  if (${CMAKE_MATCH_1} LESS 4.110)
-    message(FATAL_ERROR "CIRCT only supports Verilator version 4.110 and up. \
-                         Found version: ${CMAKE_MATCH_1}. You can disable \
-                         the Verilator tests with '-DVERILATOR_DISABLE=ON'.")
-    set(VERILATOR_PATH "")
-  endif()
-else()
-  set(VERILATOR_PATH "")
-  message(STATUS "Did not find Verilator.")
-endif()
 
 #-------------------------------------------------------------------------------
 # Icarus Verilog Configuration

@@ -81,27 +81,6 @@ if config.python_executable != "":
   config.available_features.add('python')
   config.substitutions.append(('%PYTHON%', config.python_executable))
 
-# Enable Verilator if it has been detected.
-if config.verilator_path != "":
-  tool_dirs.append(os.path.dirname(config.verilator_path))
-  tools.append('verilator')
-  config.available_features.add('verilator')
-  config.available_features.add('rtl-sim')
-  llvm_config.with_environment('VERILATOR_PATH', config.verilator_path)
-
-# Enable Vivado if it has been detected.
-if config.vivado_path != "":
-  tool_dirs.append(config.vivado_path)
-  tools.append('xvlog')
-  tools.append('xelab')
-  tools.append('xsim')
-  config.available_features.add('ieee-sim')
-  config.available_features.add('vivado')
-  config.substitutions.append(
-      ('%ieee-sim', os.path.join(config.vivado_path, "xsim")))
-  config.substitutions.append(
-      ('%xsim%', os.path.join(config.vivado_path, "xsim")))
-
 # Enable Icarus Verilog as a fallback if no other ieee-sim was detected.
 if config.iverilog_path != "":
   tool_dirs.append(os.path.dirname(config.iverilog_path))
@@ -110,17 +89,9 @@ if config.iverilog_path != "":
   config.available_features.add('iverilog')
   config.substitutions.append(('%iverilog', config.iverilog_path))
 
-ieee_sims = list(filter(lambda x: x[0] == '%ieee-sim', config.substitutions))
-if len(ieee_sims) > 1:
-  warnings.warn(
-      f"You have multiple ieee-sim simulators configured, choosing: {ieee_sims[-1][1]}"
-  )
-
 llvm_config.add_tool_substitutions(tools, tool_dirs)
+
 # cocotb availability
-
-
-llvm_config.add_tool_substitutions(tools, tool_dirs)
 try:
   import cocotb
   import cocotb_test
