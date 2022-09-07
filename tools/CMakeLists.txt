@@ -1,13 +1,13 @@
 set(LIBS
         MLIRIR
-        MLIRLLVMIR
-        MLIRMemRef
+        MLIRLLVMDialect
+        MLIRMemRefDialect
         MLIROptLib
         MLIRParser
-        MLIRFunc
+        MLIRFuncDialect
         MLIRSupport
         MLIRTransforms
-        MLIRSCF
+        MLIRSCFDialect
         MLIRSCFToControlFlow
 
         CIRCTAffineToPipeline
