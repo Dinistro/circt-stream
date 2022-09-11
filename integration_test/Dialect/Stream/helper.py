@@ -1,8 +1,10 @@
 import cocotb
-from cocotb.triggers import RisingEdge
+import cocotb.clock
+from cocotb.triggers import RisingEdge, ReadWrite
 import re
 
 
+#TODO reuse parts of CIRCT's cocotb helper
 class HandshakePort:
   """
   Helper class that encapsulates a handshake port from the DUT.
@@ -37,6 +39,8 @@ class HandshakePort:
       await RisingEdge(self.dut.clock)
 
   async def awaitHandshake(self):
+    # Make sure that changes to ready are propagated before it is checked.
+    await ReadWrite()
     directSend = self.isReady()
     await self.waitUntilReady()
 
@@ -246,6 +250,57 @@ def getPorts(dut, inNames, outNames):
   return ins, outs
 
 
+def getNames(dut, prefix):
+  names = []
+
+  i = 0
+  while hasattr(dut, f"{prefix}{i}_ready"):
+    names.append(f"{prefix}{i}")
+    i += 1
+
+  names.append(f"{prefix}Ctrl")
+  return names
+
+
+def getInNames(dut):
+  return getNames(dut, "in")
+
+
+def getOutNames(dut):
+  return getNames(dut, "out")
+
+
+async def initDut(dut, inNames=None, outNames=None):
+  """
+  Initializes a dut by adding a clock, setting initial valid and ready flags,
+  and performing a reset.
+  """
+  if (inNames is None):
+    inNames = getInNames(dut)
+
+  if (outNames is None):
+    outNames = getOutNames(dut)
+
+  ins, outs = getPorts(dut, inNames, outNames)
+
+  # Create a 10us period clock on port clock
+  clock = cocotb.clock.Clock(dut.clock, 10, units="us")
+  cocotb.start_soon(clock.start())  # Start the clock
+
+  for i in ins:
+    i.setValid(0)
+
+  for o in outs:
+    o.setReady(1)
+
+  # Reset
+  dut.reset.value = 1
+  await RisingEdge(dut.clock)
+  dut.reset.value = 0
+  await RisingEdge(dut.clock)
+  return ins, outs
+
+
 class Stream:
   """
   Class that encapsulates all the handshake ports for a stream
@@ -272,6 +327,12 @@ class Stream:
     ctrl = cocotb.start_soon(self.ctrlPort.send())
     await data
     await ctrl
+
+  async def sendAndTerminate(self, data):
+    for d in data:
+      await self.sendData(d)
+
+    await self.sendEOS()
 
   async def checkOutputs(self, results):
     resWithEOS = [(d, 0) for d in results]
