@@ -69,16 +69,6 @@ module {
   // CHECK-NEXT:  return %{{.*}} : tuple<i64, i32>
   // CHECK-NEXT:}
 
-  func.func @create() -> !stream.stream<i32> {
-    %out = stream.create !stream.stream<i32> [1, 2, 3, 4]
-    return %out : !stream.stream<i32>
-  }
-
-  // CHECK: func.func @create() -> !stream.stream<i32> {
-  // CHECK-NEXT:   %{{.*}} = stream.create !stream.stream<i32> [1, 2, 3, 4]
-  // CHECK-NEXT:   return %{{.*}} : !stream.stream<i32>
-  // CHECK-NEXT: }
-
   func.func @split(%in: !stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
     %res0, %res1 = stream.split(%in) : (!stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>, !stream.stream<i32>) {
     ^0(%val: tuple<i32, i32>):

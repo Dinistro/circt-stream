@@ -1,12 +1,5 @@
 // RUN: stream-opt %s --split-input-file --verify-diagnostics
 
-func.func @create_wrong_type() {
-  // expected-error @+1 {{element #1's type does not match the type of the stream: expected 'i32' got 'i64'}}
-  %0 = "stream.create"() {values = [1 : i32, 2 : i64, 3 : i32, 4 : i32]} : () -> !stream.stream<i32>
-}
-
-// -----
-
 func.func @map_wrong_arg_types(%in: !stream.stream<tuple<i32, i32>>) -> (!stream.stream<i32>) {
   // expected-error @+1 {{expect the block argument #0 to have type 'tuple<i32, i32>', got 'i32' instead.}}
   %res = stream.map(%in) : (!stream.stream<tuple<i32, i32>>) -> !stream.stream<i32> {

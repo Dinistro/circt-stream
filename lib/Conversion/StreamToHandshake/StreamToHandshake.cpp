@@ -675,99 +675,6 @@ struct UnpackOpLowering : public OpConversionPattern<stream::UnpackOp> {
   }
 };
 
-struct CreateOpLowering : public StreamOpLowering<CreateOp> {
-  using StreamOpLowering::StreamOpLowering;
-
-  // TODO add location usage
-  LogicalResult
-  matchAndRewrite(stream::CreateOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Region r;
-    Location loc = op.getLoc();
-
-    Block *entryBlock = rewriter.createBlock(&r, {}, {rewriter.getNoneType()},
-                                             {rewriter.getUnknownLoc()});
-
-    // TODO ensure that subsequent ctrl inputs are ignored
-    Value ctrlIn = entryBlock->getArgument(0);
-    size_t bufSize = op.values().size();
-    Type elementType = op.getElementType();
-    assert(elementType.isa<IntegerType>());
-
-    rewriter.setInsertionPointToEnd(entryBlock);
-
-    // Only use in ctrl once
-    auto falseVal = rewriter.create<handshake::ConstantOp>(
-        rewriter.getUnknownLoc(),
-        rewriter.getIntegerAttr(rewriter.getI1Type(), 0), ctrlIn);
-    auto fst = rewriter.create<BufferOp>(loc, rewriter.getI1Type(), 1, falseVal,
-                                         BufferTypeEnum::seq);
-    fst->setAttr("initValues", rewriter.getI64ArrayAttr({1}));
-    auto useCtrl =
-        rewriter.create<handshake::ConditionalBranchOp>(loc, fst, ctrlIn);
-
-    // Ctrl "looping" and selection
-    // We have to change the input later on
-    auto tmpCtrl = rewriter.create<NeverOp>(loc, rewriter.getNoneType());
-
-    auto ctrlBuf = rewriter.create<BufferOp>(loc, rewriter.getNoneType(), 2,
-                                             tmpCtrl, BufferTypeEnum::seq);
-    auto ctrl = rewriter.create<MergeOp>(
-        loc, ValueRange({useCtrl.trueResult(), ctrlBuf}));
-    rewriter.replaceOp(tmpCtrl, {ctrl});
-
-    // Data part
-
-    auto bubble = rewriter.create<handshake::ConstantOp>(
-        loc, rewriter.getIntegerAttr(elementType, 0), ctrl);
-    auto dataBuf = rewriter.create<BufferOp>(loc, elementType, bufSize, bubble,
-                                             BufferTypeEnum::seq);
-    // The buffer works in reverse
-    SmallVector<int64_t> values;
-    for (auto attr : llvm::reverse(op.values())) {
-      assert(attr.isa<IntegerAttr>());
-      values.push_back(attr.dyn_cast<IntegerAttr>().getInt());
-    }
-    dataBuf->setAttr("initValues", rewriter.getI64ArrayAttr(values));
-    auto cnt = rewriter.create<BufferOp>(loc, rewriter.getI64Type(), 1, bubble,
-                                         BufferTypeEnum::seq);
-    // initialize cnt to 0 to indicate that 0 elements were emitted
-    cnt->setAttr("initValues", rewriter.getI64ArrayAttr({0}));
-
-    auto one = rewriter.create<handshake::ConstantOp>(
-        loc, rewriter.getIntegerAttr(rewriter.getI64Type(), 1), ctrl);
-
-    auto sizeConst = rewriter.create<handshake::ConstantOp>(
-        loc, rewriter.getIntegerAttr(rewriter.getI64Type(), bufSize), ctrl);
-
-    auto finished = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, cnt, sizeConst);
-
-    auto newCnt = rewriter.create<arith::AddIOp>(op.getLoc(), cnt, one);
-    // ensure looping of cnt
-    cnt.setOperand(newCnt);
-
-    auto tupleOut = rewriter.create<handshake::PackOp>(
-        loc, ValueRange({dataBuf, finished}));
-
-    // create terminator
-    auto term = rewriter.create<handshake::ReturnOp>(
-        loc, ValueRange({tupleOut.result(), ctrl}));
-
-    // Collect types of function
-    SmallVector<Type> argTypes;
-    argTypes.push_back(rewriter.getNoneType());
-
-    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    auto newFuncOp = createFuncOp(r, symbolUniquer.getUniqueSymName(op),
-                                  argTypes, term.getOperandTypes(), rewriter);
-
-    replaceWithInstance(op, newFuncOp, {getBlockCtrlSignal(op->getBlock())},
-                        rewriter);
-    return success();
-  }
-};
-
 struct SplitOpLowering : public StreamOpLowering<SplitOp> {
   using StreamOpLowering::StreamOpLowering;
 
@@ -1009,7 +916,6 @@ populateStreamToHandshakePatterns(StreamTypeConverter &typeConverter,
     MapOpLowering,
     FilterOpLowering,
     ReduceOpLowering,
-    CreateOpLowering,
     SplitOpLowering,
     CombineOpLowering,
     SinkOpLowering

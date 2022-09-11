@@ -179,35 +179,6 @@ def YieldOp : Stream_Op<"yield", [
     [{  attr-dict ($results^ `:` type($results))? }];
 }
 
-def CreateOp : Stream_Op<"create", [
-  NoSideEffect
-]> {
-  let summary = "create a stream from an array attribute";
-  let description = [{
-    "stream.create" creates a stream from a provided array attribute.
-
-    **NOTE**: Currently, only integer streams are supported.
-
-    Example:
-    ```mlir
-    %out = stream.create !stream.stream<i32> [1, 2, 3, 4]
-    ```
-    }];
-
-  let arguments = (ins ArrayAttr:$values);
-  let results = (outs StreamType:$result);
-
-  let extraClassDeclaration = [{
-    ::mlir::Type getElementType() {
-      return this->result().getType().dyn_cast<StreamType>().getElementType();
-    }
-  }];
-
-
-  let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
-}
-
 def SplitOp : Stream_Op<"split", []> {
   let summary = "for each input produces outputs for each output stream.";
   let description = [{
