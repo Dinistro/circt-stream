@@ -628,8 +628,10 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
 
     auto tupleOut = rewriter.create<MuxOp>(
         loc, select, ValueRange({tupleOutVal, tupleOutEOS}));
+
+    auto eosCtrl = rewriter.create<JoinOp>(loc, tupleOutEOS.getResult());
     auto ctrlOut = rewriter.create<MuxOp>(
-        loc, select, ValueRange({ctrlBr.trueResult(), ctrlBr.trueResult()}));
+        loc, select, ValueRange({ctrlBr.trueResult(), eosCtrl}));
 
     SmallVector<Value> newTermOperands = {tupleOut, ctrlOut, initCtrl};
 

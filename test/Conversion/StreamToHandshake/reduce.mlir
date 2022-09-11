@@ -17,18 +17,20 @@ func.func @reduce(%in: !stream.stream<i64>) -> !stream.stream<i64> {
 // CHECK-NEXT:    sink %{{.*}} : i1
 // CHECK-NEXT:    %{{.*}}, %{{.*}} = cond_br %{{.*}}#0, %{{.*}} : none
 // CHECK-NEXT:    sink %{{.*}} : none
-// CHECK-NEXT:    %{{.*}}:4 = fork [4] %{{.*}} : none
+// CHECK-NEXT:    %{{.*}}:3 = fork [3] %{{.*}} : none
 // CHECK-NEXT:    %{{.*}} = merge %{{.*}} : i64
 // CHECK-NEXT:    %{{.*}} = merge %{{.*}}#0 : i64
 // CHECK-NEXT:    %{{.*}} = arith.addi %{{.*}}, %{{.*}} : i64
-// CHECK-NEXT:    %{{.*}} = constant %{{.*}}#3 {value = false} : i1
+// CHECK-NEXT:    %{{.*}} = constant %{{.*}}#2 {value = false} : i1
 // CHECK-NEXT:    %{{.*}} = pack %{{.*}}#1, %{{.*}} : tuple<i64, i1>
 // CHECK-NEXT:    %{{.*}} = pack %{{.*}}#0, %{{.*}} : tuple<i64, i1>
-// CHECK-NEXT:    %{{.*}} = constant %{{.*}}#2 {value = false} : i1
+// CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : tuple<i64, i1>
+// CHECK-NEXT:    %{{.*}} = constant %{{.*}}#1 {value = false} : i1
 // CHECK-NEXT:    %{{.*}} = buffer [2] seq %{{.*}} {initValues = [1, 0]} : i32
 // CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : i32
 // CHECK-NEXT:    %{{.*}} = mux %{{.*}}#1 [%{{.*}}, %{{.*}}] : i32, tuple<i64, i1>
-// CHECK-NEXT:    %{{.*}} = mux %{{.*}}#0 [%{{.*}}#0, %{{.*}}#1] : i32, none
+// CHECK-NEXT:    %{{.*}} = join %{{.*}}#0 : tuple<i64, i1>
+// CHECK-NEXT:    %{{.*}} = mux %{{.*}}#0 [%{{.*}}#0, %{{.*}}] : i32, none
 // CHECK-NEXT:    return %{{.*}}, %{{.*}} : tuple<i64, i1>, none
 // CHECK-NEXT:  }
 // CHECK-NEXT:  handshake.func @reduce(%{{.*}}: tuple<i64, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i64, i1>, none, none)
