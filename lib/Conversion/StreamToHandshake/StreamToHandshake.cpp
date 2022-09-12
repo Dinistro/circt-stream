@@ -122,17 +122,15 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
             typeConverter->convertSignatureArgs(oldFuncType.getInputs(), sig)))
       return failure();
 
-    // Add ctrl signal for initialization control flow
-    sig.addInputs(rewriter.getNoneType());
-
     if (failed(typeConverter->convertTypes(oldFuncType.getResults(),
                                            newResults)) ||
         failed(
             rewriter.convertRegionTypes(&op.getBody(), *typeConverter, &sig)))
       return failure();
 
-    // Add ctrl
-    newResults.push_back(rewriter.getNoneType());
+    // TODO: this is a workaround for a current CIRCT limitation
+    if (newResults.empty())
+      newResults.push_back(rewriter.getNoneType());
 
     auto newFuncType =
         rewriter.getFunctionType(sig.getConvertedTypes(), newResults);
@@ -184,6 +182,8 @@ static void resolveStreamOperand(Value oldOperand,
                                  SmallVectorImpl<Value> &newOperands) {
   assert(oldOperand.getType().isa<StreamType>());
   // TODO: is there another way to resolve this directly?
+  // TODO: only if we find a way to replace one value by multiple -> check in
+  // discourse
   auto castOp =
       dyn_cast<UnrealizedConversionCastOp>(oldOperand.getDefiningOp());
   for (auto castOperand : castOp.getInputs())
@@ -196,14 +196,6 @@ static void resolveNewOperands(Operation *oldOperation,
   for (auto [oldOp, remappedOp] :
        llvm::zip(oldOperation->getOperands(), remappedOperands))
     resolveStreamOperand(remappedOp, newOperands);
-
-  // Resolve the init ctrl signal
-  if (remappedOperands.size() == 0) {
-    Value ctrl = oldOperation->getBlock()->getArguments().back();
-    newOperands.push_back(ctrl);
-  } else {
-    newOperands.push_back(getCtrlSignal(remappedOperands));
-  }
 }
 
 struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
@@ -214,6 +206,11 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
                   ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> operands;
     resolveNewOperands(op, adaptor.getOperands(), operands);
+
+    // TODO: this is a workaround for a current CIRCT limitation
+    if (operands.empty())
+      operands.push_back(rewriter.create<handshake::NeverOp>(
+          op->getLoc(), rewriter.getNoneType()));
 
     rewriter.replaceOpWithNewOp<handshake::ReturnOp>(op, operands);
     return success();
@@ -384,7 +381,6 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
     SmallVector<Type> inputTypes;
     if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
       return failure();
-    inputTypes.push_back(rewriter.getNoneType());
 
     SmallVector<Location> argLocs(inputTypes.size(), loc);
 
@@ -392,7 +388,6 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
         rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
     Value tupleIn = entryBlock->getArgument(0);
     Value streamCtrl = entryBlock->getArgument(1);
-    Value initCtrl = entryBlock->getArgument(2);
 
     auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
     Value data = unpack.getResult(0);
@@ -422,8 +417,8 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
     auto tupleOut = rewriter.create<handshake::PackOp>(
         oldTerm->getLoc(), ValueRange({oldTerm->getOperand(0), eos}));
 
-    SmallVector<Value> newTermOperands = {
-        tupleOut, oldTerm->getOperands().back(), initCtrl};
+    SmallVector<Value> newTermOperands = {tupleOut,
+                                          oldTerm->getOperands().back()};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
@@ -457,7 +452,6 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
     SmallVector<Type> inputTypes;
     if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
       return failure();
-    inputTypes.push_back(rewriter.getNoneType());
 
     SmallVector<Location> argLocs(inputTypes.size(), loc);
 
@@ -465,7 +459,6 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
         rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
     Value tupleIn = entryBlock->getArgument(0);
     Value streamCtrl = entryBlock->getArgument(1);
-    Value initCtrl = entryBlock->getArgument(2);
 
     auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
     Value data = unpack.getResult(0);
@@ -508,7 +501,7 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
         rewriter.getUnknownLoc(), condOrEos, ctrl);
 
     SmallVector<Value> newTermOperands = {dataBr.trueResult(),
-                                          ctrlBr.trueResult(), initCtrl};
+                                          ctrlBr.trueResult()};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
@@ -557,7 +550,6 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     SmallVector<Type> inputTypes;
     if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
       return failure();
-    inputTypes.push_back(rewriter.getNoneType());
 
     SmallVector<Location> argLocs(inputTypes.size(), loc);
 
@@ -565,7 +557,6 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
         rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
     Value tupleIn = entryBlock->getArgument(0);
     Value streamCtrl = entryBlock->getArgument(1);
-    Value initCtrl = entryBlock->getArgument(2);
 
     auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
     Value data = unpack.getResult(0);
@@ -633,7 +624,7 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     auto ctrlOut = rewriter.create<MuxOp>(
         loc, select, ValueRange({ctrlBr.trueResult(), eosCtrl}));
 
-    SmallVector<Value> newTermOperands = {tupleOut, ctrlOut, initCtrl};
+    SmallVector<Value> newTermOperands = {tupleOut, ctrlOut};
 
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
@@ -690,7 +681,6 @@ struct SplitOpLowering : public StreamOpLowering<SplitOp> {
     SmallVector<Type> inputTypes;
     if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
       return failure();
-    inputTypes.push_back(rewriter.getNoneType());
 
     SmallVector<Location> argLocs(inputTypes.size(), loc);
 
@@ -698,7 +688,6 @@ struct SplitOpLowering : public StreamOpLowering<SplitOp> {
         rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
     Value tupleIn = entryBlock->getArgument(0);
     Value streamCtrl = entryBlock->getArgument(1);
-    Value initCtrl = entryBlock->getArgument(2);
 
     auto unpack = rewriter.create<handshake::UnpackOp>(loc, tupleIn);
     Value data = unpack.getResult(0);
@@ -734,7 +723,6 @@ struct SplitOpLowering : public StreamOpLowering<SplitOp> {
       newTermOperands.push_back(oldTerm->getOperands().back());
     }
 
-    newTermOperands.push_back(initCtrl);
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
@@ -781,7 +769,6 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
     SmallVector<Type> inputTypes;
     if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
       return failure();
-    inputTypes.push_back(rewriter.getNoneType());
 
     SmallVector<Location> argLocs(inputTypes.size(), loc);
 
@@ -810,8 +797,6 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
 
     regBuilder->buildRegisters(blockInputs);
 
-    Value initCtrl = entryBlock->getArguments().back();
-
     // only execute region when ALL inputs are ready
     auto ctrlJoin = rewriter.create<JoinOp>(loc, ctrlInputs);
     blockInputs.push_back(ctrlJoin);
@@ -838,7 +823,6 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
       newTermOperands.push_back(oldTerm->getOperands().back());
     }
 
-    newTermOperands.push_back(initCtrl);
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
@@ -865,36 +849,14 @@ struct SinkOpLowering : public StreamOpLowering<stream::SinkOp> {
   matchAndRewrite(stream::SinkOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
-
-    Region r;
-
-    SmallVector<Type> inputTypes;
-    if (failed(typeConverter->convertTypes(op->getOperandTypes(), inputTypes)))
-      return failure();
-    inputTypes.push_back(rewriter.getNoneType());
-
-    SmallVector<Location> argLocs(inputTypes.size(), loc);
-
-    Block *entryBlock =
-        rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
-
-    // Don't use the values to ensure that handshake::SinkOps will be inserted
-    Value initCtrl = entryBlock->getArguments().back();
-    auto newTerm =
-        rewriter.create<handshake::ReturnOp>(loc, ValueRange(initCtrl));
-
-    TypeRange resTypes = newTerm->getOperandTypes();
-
     SmallVector<Value> operands;
     resolveNewOperands(op, adaptor.getOperands(), operands);
 
-    rewriter.setInsertionPointToStart(getTopLevelBlock(op));
-    FuncOp newFuncOp =
-        createFuncOp(r, symbolUniquer.getUniqueSymName(op),
-                     entryBlock->getArgumentTypes(), resTypes, rewriter);
+    // Inserts sinks for all inputs
+    for (auto operand : operands)
+      rewriter.create<handshake::SinkOp>(loc, operand);
 
-    replaceWithInstance(op, newFuncOp, operands, rewriter);
+    rewriter.eraseOp(op);
 
     return success();
   }

@@ -11,7 +11,7 @@ module {
     return %out : !stream.stream<i32>
   }
 
-  // CHECK: handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none)
+  // CHECK: handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none)
 // CHECK-NEXT:   %{{.*}}:2 = fork [2] %{{.*}} : none
 // CHECK-NEXT:   %{{.*}}:2 = unpack %{{.*}} : tuple<i32, i1>
 // CHECK-NEXT:   %{{.*}}:2 = fork [2] %{{.*}} : i1
@@ -26,10 +26,10 @@ module {
 // CHECK-NEXT:   sink %{{.*}} : tuple<i32, i1>
 // CHECK-NEXT:   %{{.*}}, %{{.*}} = cond_br %{{.*}}#0, %{{.*}}#1 : none
 // CHECK-NEXT:   sink %{{.*}} : none
-// CHECK-NEXT:   return %{{.*}}, %{{.*}}, %{{.*}} : tuple<i32, i1>, none, none
+// CHECK-NEXT:   return %{{.*}}, %{{.*}} : tuple<i32, i1>, none
 // CHECK-NEXT: }
-// CHECK-NEXT:  handshake.func @filter(%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none)
-// CHECK-NEXT:    %{{.*}}:3 = instance @[[LABEL]](%{{.*}}, %{{.*}}, %{{.*}}) : (tuple<i32, i1>, none, none) -> (tuple<i32, i1>, none, none)
-// CHECK-NEXT:    return %{{.*}}#0, %{{.*}}#1, %{{.*}}#2 : tuple<i32, i1>, none, none
+// CHECK-NEXT:  handshake.func @filter(%{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none)
+// CHECK-NEXT:    %{{.*}}:2 = instance @[[LABEL]](%{{.*}}, %{{.*}}) : (tuple<i32, i1>, none) -> (tuple<i32, i1>, none)
+// CHECK-NEXT:    return %{{.*}}#0, %{{.*}}#1 : tuple<i32, i1>, none
 // CHECK-NEXT:  }
 }

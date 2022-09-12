@@ -10,7 +10,7 @@ module {
     return %res : !stream.stream<i32>
   }
 
-  // CHECK:  handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none)
+  // CHECK:  handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none)
   // CHECK-NEXT:   %{{.*}}:2 = unpack %{{.*}} : tuple<i32, i1>
   // CHECK-NEXT:   %{{.*}}:2 = unpack %{{.*}} : tuple<i32, i1>
   // CHECK-NEXT:   %{{.*}} = join %{{.*}}, %{{.*}} : none
@@ -19,10 +19,10 @@ module {
   // CHECK-NEXT:   %{{.*}} = arith.addi %{{.*}}, %{{.*}} : i32
   // CHECK-NEXT:   %{{.*}} = arith.ori %{{.*}}#1, %{{.*}}#1 : i1
   // CHECK-NEXT:   %{{.*}} = pack %{{.*}}, %{{.*}} : tuple<i32, i1>
-  // CHECK-NEXT:   return %{{.*}}, %{{.*}}, %{{.*}} : tuple<i32, i1>, none, none
+  // CHECK-NEXT:   return %{{.*}}, %{{.*}} : tuple<i32, i1>, none
   // CHECK-NEXT: }
-  // CHECK-NEXT: handshake.func @combine(%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i32, i1>, none, none)
-  // CHECK-NEXT:   %{{.*}}:3 = instance @[[LABEL]](%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (tuple<i32, i1>, none, tuple<i32, i1>, none, none) -> (tuple<i32, i1>, none, none)
-  // CHECK-NEXT:   return %{{.*}}#0, %{{.*}}#1, %{{.*}}#2 : tuple<i32, i1>, none, none
+  // CHECK-NEXT: handshake.func @combine(%{{.*}}: tuple<i32, i1>, %{{.*}}: none, %{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none)
+  // CHECK-NEXT:   %{{.*}}:2 = instance @[[LABEL]](%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (tuple<i32, i1>, none, tuple<i32, i1>, none) -> (tuple<i32, i1>, none)
+  // CHECK-NEXT:   return %{{.*}}#0, %{{.*}}#1 : tuple<i32, i1>, none
   // CHECK-NEXT: }
 }
