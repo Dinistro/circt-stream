@@ -7,7 +7,7 @@ func.func @reduce(%in: !stream.stream<i64>) -> !stream.stream<i64> {
   }
   return %res : !stream.stream<i64>
 }
-// CHECK:       handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i64, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i64, i1>, none, none)
+// CHECK:       handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i64, i1>, %{{.*}}: none, ...) -> (tuple<i64, i1>, none)
 // CHECK-NEXT:    %{{.*}}:2 = unpack %{{.*}} : tuple<i64, i1>
 // CHECK-NEXT:    %{{.*}}:4 = fork [4] %{{.*}}#1 : i1
 // CHECK-NEXT:    %{{.*}} = buffer [1] seq %{{.*}} {initValues = [0]} : i64
@@ -33,7 +33,7 @@ func.func @reduce(%in: !stream.stream<i64>) -> !stream.stream<i64> {
 // CHECK-NEXT:    %{{.*}} = mux %{{.*}}#0 [%{{.*}}#0, %{{.*}}] : i32, none
 // CHECK-NEXT:    return %{{.*}}, %{{.*}} : tuple<i64, i1>, none
 // CHECK-NEXT:  }
-// CHECK-NEXT:  handshake.func @reduce(%{{.*}}: tuple<i64, i1>, %{{.*}}: none, %{{.*}}: none, ...) -> (tuple<i64, i1>, none, none)
-// CHECK-NEXT:    %{{.*}}:3 = instance @[[LABEL]](%{{.*}}, %{{.*}}, %{{.*}}) : (tuple<i64, i1>, none, none) -> (tuple<i64, i1>, none, none)
-// CHECK-NEXT:    return %{{.*}}#0, %{{.*}}#1, %{{.*}}#2 : tuple<i64, i1>, none, none
+// CHECK-NEXT:  handshake.func @reduce(%{{.*}}: tuple<i64, i1>, %{{.*}}: none, ...) -> (tuple<i64, i1>, none)
+// CHECK-NEXT:    %{{.*}}:2 = instance @[[LABEL]](%{{.*}}, %{{.*}}) : (tuple<i64, i1>, none) -> (tuple<i64, i1>, none)
+// CHECK-NEXT:    return %{{.*}}#0, %{{.*}}#1 : tuple<i64, i1>, none
 // CHECK-NEXT:  }
