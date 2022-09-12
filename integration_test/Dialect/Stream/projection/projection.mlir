@@ -7,12 +7,8 @@
 // RUN: firtool --format=mlir --lowering-options=disallowLocalVariables --verilog > %t.sv && \
 // RUN: %PYTHON% %S/../cocotb_driver.py --objdir=%t.sv.d/ --topLevel=top --pythonModule=projection --pythonFolder=%S --testcase=all %t.sv 2>&1 | FileCheck %s
 
-// CHECK:      ** TEST
-// CHECK-NEXT: ********************************
-// CHECK-NEXT: ** projection.increase
-// CHECK-NEXT: ********************************
-// CHECK-NEXT: ** TESTS=1 PASS=1 FAIL=0 SKIP=0
-// CHECK-NEXT: ********************************
+// CHECK: ** TEST
+// CHECK: ** TESTS=[[N:.*]] PASS=[[N]] FAIL=0 SKIP=0
 
 
 module {
