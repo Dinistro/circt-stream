@@ -128,10 +128,6 @@ struct FuncOpLowering : public OpConversionPattern<func::FuncOp> {
             rewriter.convertRegionTypes(&op.getBody(), *typeConverter, &sig)))
       return failure();
 
-    // TODO: this is a workaround for a current CIRCT limitation
-    if (newResults.empty())
-      newResults.push_back(rewriter.getNoneType());
-
     auto newFuncType =
         rewriter.getFunctionType(sig.getConvertedTypes(), newResults);
 
@@ -206,11 +202,6 @@ struct ReturnOpLowering : public OpConversionPattern<func::ReturnOp> {
                   ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> operands;
     resolveNewOperands(op, adaptor.getOperands(), operands);
-
-    // TODO: this is a workaround for a current CIRCT limitation
-    if (operands.empty())
-      operands.push_back(rewriter.create<handshake::NeverOp>(
-          op->getLoc(), rewriter.getNoneType()));
 
     rewriter.replaceOpWithNewOp<handshake::ReturnOp>(op, operands);
     return success();
