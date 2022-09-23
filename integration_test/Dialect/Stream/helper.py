@@ -258,7 +258,6 @@ def getNames(dut, prefix):
     names.append(f"{prefix}{i}")
     i += 1
 
-  names.append(f"{prefix}Ctrl")
   return names
 
 

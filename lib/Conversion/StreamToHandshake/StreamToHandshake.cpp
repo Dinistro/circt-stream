@@ -290,7 +290,7 @@ struct StreamOpLowering : public OpConversionPattern<Op> {
 template <typename TOp>
 static LogicalResult getRegInfos(TOp op,
                                  SmallVectorImpl<IntegerAttr> &regTypes) {
-  Optional<ArrayAttr> regTypeAttr = op.registers();
+  Optional<ArrayAttr> regTypeAttr = op.getRegisters();
   if (regTypeAttr.has_value()) {
     for (auto attr : *regTypeAttr) {
       auto res = llvm::TypeSwitch<Attribute, LogicalResult>(attr)
@@ -500,8 +500,8 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
     auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
         rewriter.getUnknownLoc(), condOrEos, ctrl);
 
-    SmallVector<Value> newTermOperands = {dataBr.trueResult(),
-                                          ctrlBr.trueResult()};
+    SmallVector<Value> newTermOperands = {dataBr.getTrueResult(),
+                                          ctrlBr.getTrueResult()};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
@@ -534,7 +534,8 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
 
     TypeConverter *typeConverter = getTypeConverter();
     SmallVector<Type> resultTypes;
-    if (failed(typeConverter->convertType(op.result().getType(), resultTypes)))
+    if (failed(
+            typeConverter->convertType(op.getResult().getType(), resultTypes)))
       return failure();
 
     assert(resultTypes[0].isa<TupleType>());
@@ -570,8 +571,8 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
         BufferTypeEnum::seq);
     // This does return an unsigned integer but expects signed integers
     // TODO check if this is an MLIR bug
-    buffer->setAttr("initValues",
-                    rewriter.getI64ArrayAttr({(int64_t)adaptor.initValue()}));
+    buffer->setAttr("initValues", rewriter.getI64ArrayAttr(
+                                      {(int64_t)adaptor.getInitValue()}));
 
     auto dataBr = rewriter.create<handshake::ConditionalBranchOp>(
         rewriter.getUnknownLoc(), eos, buffer);
@@ -580,7 +581,7 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
         rewriter.getUnknownLoc(), eos, oldTerm->getOperands().back());
 
-    SmallVector<Value> lambdaIns = {dataBr.falseResult(), data};
+    SmallVector<Value> lambdaIns = {dataBr.getFalseResult(), data};
 
     auto regBuilder = RegisterBuilder::create(rewriter, op);
     if (failed(regBuilder))
@@ -600,17 +601,18 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     // emission A sequental buffer ensures a cycle delay of 1
     auto eosFalse = rewriter.create<handshake::ConstantOp>(
         rewriter.getUnknownLoc(),
-        rewriter.getIntegerAttr(rewriter.getI1Type(), 0), ctrlBr.trueResult());
+        rewriter.getIntegerAttr(rewriter.getI1Type(), 0),
+        ctrlBr.getTrueResult());
     auto tupleOutVal = rewriter.create<handshake::PackOp>(
-        loc, ValueRange({dataBr.trueResult(), eosFalse}));
+        loc, ValueRange({dataBr.getTrueResult(), eosFalse}));
 
     auto tupleOutEOS = rewriter.create<handshake::PackOp>(
-        loc, ValueRange({dataBr.trueResult(), eosBr.trueResult()}));
+        loc, ValueRange({dataBr.getTrueResult(), eosBr.getTrueResult()}));
 
     // Not really needed, but the BufferOp builder requires an input
     auto bubble = rewriter.create<ConstantOp>(
         loc, rewriter.getIntegerAttr(rewriter.getI1Type(), 0),
-        ctrlBr.trueResult());
+        ctrlBr.getTrueResult());
     auto select = rewriter.create<handshake::BufferOp>(
         rewriter.getUnknownLoc(), rewriter.getI32Type(), 2, bubble,
         BufferTypeEnum::seq);
@@ -622,7 +624,7 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
 
     auto eosCtrl = rewriter.create<JoinOp>(loc, tupleOutEOS.getResult());
     auto ctrlOut = rewriter.create<MuxOp>(
-        loc, select, ValueRange({ctrlBr.trueResult(), eosCtrl}));
+        loc, select, ValueRange({ctrlBr.getTrueResult(), eosCtrl}));
 
     SmallVector<Value> newTermOperands = {tupleOut, ctrlOut};
 
@@ -660,7 +662,7 @@ struct UnpackOpLowering : public OpConversionPattern<stream::UnpackOp> {
   LogicalResult
   matchAndRewrite(stream::UnpackOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<handshake::UnpackOp>(op, adaptor.input());
+    rewriter.replaceOpWithNewOp<handshake::UnpackOp>(op, adaptor.getInput());
 
     return success();
   }
@@ -948,7 +950,7 @@ static LogicalResult removeUnusedConversionCasts(ModuleOp m) {
   for (auto funcOp : m.getOps<handshake::FuncOp>()) {
     if (funcOp.isDeclaration())
       continue;
-    Region &funcRegion = funcOp.body();
+    Region &funcRegion = funcOp.getBody();
     for (auto op : llvm::make_early_inc_range(
              funcRegion.getOps<UnrealizedConversionCastOp>())) {
       op->erase();

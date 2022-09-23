@@ -102,7 +102,7 @@ static LogicalResult verifyDefaultRegion(Operation *op, Region &r,
 
 template <typename TOp>
 static LogicalResult getRegTypes(TOp op, SmallVectorImpl<Type> &regTypes) {
-  Optional<ArrayAttr> regTypeAttr = op.registers();
+  Optional<ArrayAttr> regTypeAttr = op.getRegisters();
   if (regTypeAttr.has_value()) {
     for (auto attr : *regTypeAttr) {
       auto res = llvm::TypeSwitch<Attribute, LogicalResult>(attr)
@@ -125,7 +125,7 @@ LogicalResult MapOp::verifyRegions() {
   if (failed(getRegTypes(*this, regTypes)))
     return failure();
 
-  return verifyDefaultRegion(getOperation(), region(), regTypes);
+  return verifyDefaultRegion(getOperation(), getRegion(), regTypes);
 }
 
 LogicalResult FilterOp::verifyRegions() {
@@ -141,7 +141,7 @@ LogicalResult FilterOp::verifyRegions() {
   resultTypes.push_back(IntegerType::get(this->getContext(), 1));
   llvm::copy(regTypes, std::back_inserter(resultTypes));
 
-  return verifyRegion(getOperation(), region(), inputTypes, resultTypes);
+  return verifyRegion(getOperation(), getRegion(), inputTypes, resultTypes);
 }
 
 LogicalResult ReduceOp::verifyRegions() {
@@ -149,8 +149,8 @@ LogicalResult ReduceOp::verifyRegions() {
   if (failed(getRegTypes(*this, regTypes)))
     return failure();
 
-  Type inputType = getElementType(input().getType());
-  Type accType = getElementType(result().getType());
+  Type inputType = getElementType(getInput().getType());
+  Type accType = getElementType(getResult().getType());
 
   SmallVector<Type> inputTypes = {inputType, accType};
   llvm::copy(regTypes, std::back_inserter(inputTypes));
@@ -158,7 +158,7 @@ LogicalResult ReduceOp::verifyRegions() {
   SmallVector<Type> resultTypes = {accType};
   llvm::copy(regTypes, std::back_inserter(resultTypes));
 
-  return verifyRegion(getOperation(), region(), inputTypes, resultTypes);
+  return verifyRegion(getOperation(), getRegion(), inputTypes, resultTypes);
 }
 
 ParseResult UnpackOp::parse(OpAsmParser &parser, OperationState &result) {
@@ -179,9 +179,9 @@ ParseResult UnpackOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void UnpackOp::print(OpAsmPrinter &p) {
-  p << " " << input();
+  p << " " << getInput();
   p.printOptionalAttrDict((*this)->getAttrs());
-  p << " : " << input().getType();
+  p << " : " << getInput().getType();
 }
 
 /// Replaces unnecessary `stream.unpack` when its operand is the result of a
@@ -194,11 +194,11 @@ void UnpackOp::print(OpAsmPrinter &p) {
 ///   // ... some ops using %a2, %b2
 /// ```
 LogicalResult UnpackOp::canonicalize(UnpackOp op, PatternRewriter &rewriter) {
-  PackOp tuple = dyn_cast_or_null<PackOp>(op.input().getDefiningOp());
+  PackOp tuple = dyn_cast_or_null<PackOp>(op.getInput().getDefiningOp());
   if (!tuple)
     return failure();
 
-  rewriter.replaceOp(op, tuple.inputs());
+  rewriter.replaceOp(op, tuple.getInputs());
   return success();
 }
 
@@ -222,9 +222,9 @@ ParseResult PackOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void PackOp::print(OpAsmPrinter &p) {
-  p << " " << inputs();
+  p << " " << getInputs();
   p.printOptionalAttrDict((*this)->getAttrs());
-  p << " : " << result().getType();
+  p << " : " << getResult().getType();
 }
 
 /// Replaces an unnecessary `stream.pack` when it's operands are results of a
@@ -237,12 +237,12 @@ void PackOp::print(OpAsmPrinter &p) {
 ///   // ... some ops using %tuple2
 /// ```
 LogicalResult PackOp::canonicalize(PackOp op, PatternRewriter &rewriter) {
-  if (op.inputs().size() == 0)
+  if (op.getInputs().size() == 0)
     return failure();
 
-  Operation *singleDefiningOp = op.inputs()[0].getDefiningOp();
+  Operation *singleDefiningOp = op.getInputs()[0].getDefiningOp();
 
-  if (!llvm::all_of(op.inputs(), [singleDefiningOp](Value input) {
+  if (!llvm::all_of(op.getInputs(), [singleDefiningOp](Value input) {
         return input.getDefiningOp() == singleDefiningOp;
       }))
     return failure();
@@ -252,7 +252,7 @@ LogicalResult PackOp::canonicalize(PackOp op, PatternRewriter &rewriter) {
   if (!unpackDefiningOp)
     return failure();
 
-  rewriter.replaceOp(op, unpackDefiningOp.input());
+  rewriter.replaceOp(op, unpackDefiningOp.getInput());
   return success();
 }
 
@@ -260,12 +260,12 @@ LogicalResult SplitOp::verifyRegions() {
   SmallVector<Type> regTypes;
   if (failed(getRegTypes(*this, regTypes)))
     return failure();
-  return verifyDefaultRegion(getOperation(), region(), regTypes);
+  return verifyDefaultRegion(getOperation(), getRegion(), regTypes);
 }
 
 LogicalResult CombineOp::verifyRegions() {
   SmallVector<Type> regTypes;
   if (failed(getRegTypes(*this, regTypes)))
     return failure();
-  return verifyDefaultRegion(getOperation(), region(), regTypes);
+  return verifyDefaultRegion(getOperation(), getRegion(), regTypes);
 }
