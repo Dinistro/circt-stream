@@ -35,14 +35,14 @@ func.func @filter_wrong_yield_type(%in: !stream.stream<i32>) -> (!stream.stream<
 
 // -----
 
-func.func @reduce_wrong_arg_types(%in: !stream.stream<i64>) -> !stream.stream<i64> {
-  // expected-error @+1 {{expect the block argument #0 to have type 'i64', got 'i32' instead.}}
-  %res = stream.reduce(%in) {initValue = 0 : i64}: (!stream.stream<i64>) -> !stream.stream<i64> {
+func.func @reduce_wrong_arg_types(%in: !stream.stream<i64>) -> !stream.stream<i8> {
+  // expected-error @+1 {{expect the block argument #0 to have type 'i8', got 'i32' instead.}}
+  %res = stream.reduce(%in) {initValue = 0 : i64}: (!stream.stream<i64>) -> !stream.stream<i8> {
   ^0(%acc: i32, %val: i64):
-    %0 = arith.constant 1 : i64
-    stream.yield %0 : i64
+    %0 = arith.constant 1 : i8
+    stream.yield %0 : i8
   }
-  return %res : !stream.stream<i64>
+  return %res : !stream.stream<i8>
 }
 
 // -----
