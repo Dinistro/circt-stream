@@ -35,11 +35,6 @@ def parseArgs(args):
                          default=os.getcwd(),
                          help="The folder where the cocotb test file is.")
 
-  argparser.add_argument("--testcase",
-                         choices=['singleOut', 'multipleOut', 'all'],
-                         default="singleOut",
-                         help="Name of the testcase to run")
-
   argparser.add_argument(
       "sources",
       nargs="+",
@@ -114,10 +109,6 @@ def main():
   if simhandler:
     compileArgs += simhandler.extra_compile_args(objDir)
 
-  testcase = args.testcase
-  if (testcase == "all"):
-    testcase = None
-
   testmodule = "test_" + args.topLevel
   run(simulator=args.simulator,
       module=args.pythonModule,
@@ -126,7 +117,6 @@ def main():
       verilog_sources=sources,
       python_search=[args.pythonFolder],
       work_dir=objDir,
-      testcase=testcase,
       compile_args=compileArgs)
 
 
