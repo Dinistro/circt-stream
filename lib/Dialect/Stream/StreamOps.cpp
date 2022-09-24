@@ -152,7 +152,7 @@ LogicalResult ReduceOp::verifyRegions() {
   Type inputType = getElementType(getInput().getType());
   Type accType = getElementType(getResult().getType());
 
-  SmallVector<Type> inputTypes = {inputType, accType};
+  SmallVector<Type> inputTypes = {accType, inputType};
   llvm::copy(regTypes, std::back_inserter(inputTypes));
 
   SmallVector<Type> resultTypes = {accType};
