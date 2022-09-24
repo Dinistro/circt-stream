@@ -14,7 +14,6 @@
 
 #include <llvm/ADT/STLExtras.h>
 
-#include "../PassDetail.h"
 #include "circt-stream/Dialect/Stream/StreamDialect.h"
 #include "circt-stream/Dialect/Stream/StreamOps.h"
 #include "circt/Conversion/StandardToHandshake.h"
@@ -26,6 +25,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -38,6 +38,11 @@ using namespace circt::handshake;
 using namespace mlir;
 using namespace circt_stream;
 using namespace circt_stream::stream;
+
+namespace circt_stream {
+#define GEN_PASS_DEF_STREAMTOHANDSHAKE
+#include "circt-stream/Conversion/Passes.h.inc"
+} // namespace circt_stream
 
 namespace {
 
@@ -951,7 +956,7 @@ static LogicalResult removeUnusedConversionCasts(ModuleOp m) {
 }
 
 class StreamToHandshakePass
-    : public StreamToHandshakeBase<StreamToHandshakePass> {
+    : public circt_stream::impl::StreamToHandshakeBase<StreamToHandshakePass> {
 public:
   void runOnOperation() override {
     if (failed(transformStdRegions(getOperation()))) {
@@ -994,8 +999,4 @@ public:
   }
 };
 } // namespace
-
-std::unique_ptr<Pass> circt_stream::createStreamToHandshakePass() {
-  return std::make_unique<StreamToHandshakePass>();
-}
 
