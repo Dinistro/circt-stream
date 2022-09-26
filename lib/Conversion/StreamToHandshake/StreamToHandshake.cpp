@@ -610,7 +610,7 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
         loc, rewriter.getIntegerAttr(rewriter.getI1Type(), 0),
         ctrlBr.getTrueResult());
     auto select = rewriter.create<handshake::BufferOp>(
-        rewriter.getUnknownLoc(), rewriter.getI32Type(), 2, bubble,
+        rewriter.getUnknownLoc(), rewriter.getI1Type(), 2, bubble,
         BufferTypeEnum::seq);
     // First select the tupleOut, afterwards the one with the EOS signal
     select->setAttr("initValues", rewriter.getI64ArrayAttr({1, 0}));

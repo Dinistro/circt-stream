@@ -26,11 +26,11 @@ func.func @reduce(%in: !stream.stream<i64>) -> !stream.stream<i64> {
 // CHECK-NEXT:    %{{.*}} = pack %{{.*}}#0, %{{.*}} : tuple<i64, i1>
 // CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : tuple<i64, i1>
 // CHECK-NEXT:    %{{.*}} = constant %{{.*}}#1 {value = false} : i1
-// CHECK-NEXT:    %{{.*}} = buffer [2] seq %{{.*}} {initValues = [1, 0]} : i32
-// CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : i32
-// CHECK-NEXT:    %{{.*}} = mux %{{.*}}#1 [%{{.*}}, %{{.*}}] : i32, tuple<i64, i1>
+// CHECK-NEXT:    %{{.*}} = buffer [2] seq %{{.*}} {initValues = [1, 0]} : i1
+// CHECK-NEXT:    %{{.*}}:2 = fork [2] %{{.*}} : i1
+// CHECK-NEXT:    %{{.*}} = mux %{{.*}}#1 [%{{.*}}, %{{.*}}] : i1, tuple<i64, i1>
 // CHECK-NEXT:    %{{.*}} = join %{{.*}}#0 : tuple<i64, i1>
-// CHECK-NEXT:    %{{.*}} = mux %{{.*}}#0 [%{{.*}}#0, %{{.*}}] : i32, none
+// CHECK-NEXT:    %{{.*}} = mux %{{.*}}#0 [%{{.*}}#0, %{{.*}}] : i1, none
 // CHECK-NEXT:    return %{{.*}}, %{{.*}} : tuple<i64, i1>, none
 // CHECK-NEXT:  }
 // CHECK-NEXT:  handshake.func @reduce(%{{.*}}: tuple<i64, i1>, %{{.*}}: none, ...) -> (tuple<i64, i1>, none)
