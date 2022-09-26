@@ -38,6 +38,7 @@ set(LIBS
 
         CIRCTStreamStream
         CIRCTStreamStreamToHandshake
+        CIRCTStreamTransform
         )
 add_llvm_executable(stream-opt stream-opt.cpp)
 
