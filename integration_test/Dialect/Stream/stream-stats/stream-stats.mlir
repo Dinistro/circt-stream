@@ -21,6 +21,12 @@
 // RUN: firtool --format=mlir --lowering-options=disallowLocalVariables --verilog > %t.sv && \
 // RUN: %PYTHON% %S/../cocotb_driver.py --objdir=%t.sv.d/ --topLevel=top --pythonModule=stream-stats --pythonFolder=%S %t.sv 2>&1 | FileCheck %s
 
+// RUN: stream-opt %s --convert-stream-to-handshake \
+// RUN:   --handshake-materialize-forks-sinks --canonicalize \
+// RUN:   --custom-buffer-insertion --lower-handshake-to-firrtl | \
+// RUN: firtool --format=mlir --lowering-options=disallowLocalVariables --verilog > %t.sv && \
+// RUN: %PYTHON% %S/../cocotb_driver.py --objdir=%t.sv.d/ --topLevel=top --pythonModule=stream-stats --pythonFolder=%S %t.sv 2>&1 | FileCheck %s
+
 // CHECK: ** TEST
 // CHECK: ** TESTS=[[N:.*]] PASS=[[N]] FAIL=0 SKIP=0
 
