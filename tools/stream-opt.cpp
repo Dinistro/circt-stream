@@ -8,6 +8,7 @@
 
 #include "circt-stream/Conversion/Passes.h"
 #include "circt-stream/Dialect/Stream/StreamDialect.h"
+#include "circt-stream/Transform/Passes.h"
 #include "circt/InitAllDialects.h"
 #include "circt/InitAllPasses.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
@@ -80,6 +81,7 @@ int main(int argc, char **argv) {
   registry.insert<circt_stream::stream::StreamDialect>();
 
   circt_stream::registerConversionPasses();
+  circt_stream::registerTransformPasses();
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "Stream optimizer driver\n", registry));
