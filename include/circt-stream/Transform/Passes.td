@@ -18,7 +18,10 @@ include "mlir/Rewrite/PassUtil.td"
 
 def CustomBufferInsertion : Pass<"custom-buffer-insertion", "circt::handshake::FuncOp"> {
   let summary = "Custom buffer insertion";
-  let description = [{TODO}];
+  let description = [{
+    This pass inserts buffers everywhere, except in cycles. The goal of this pass is
+    to increase the throughput, but reducing the latency of a cycle.
+  }];
   let dependentDialects = ["circt::handshake::HandshakeDialect"];
 }
 
