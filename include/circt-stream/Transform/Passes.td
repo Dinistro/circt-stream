@@ -23,6 +23,10 @@ def CustomBufferInsertion : Pass<"custom-buffer-insertion", "circt::handshake::F
     to increase the throughput, but reducing the latency of a cycle.
   }];
   let dependentDialects = ["circt::handshake::HandshakeDialect"];
+  let options = [
+    Option<"fifoBufferSize", "fifobuffer-size", "unsigned", /*default=*/"10",
+           "Number of slots in each fifo buffer">,
+  ];
 }
 
 #endif // CIRCT_STREAM_TRANSFORMS_PASSES

@@ -57,8 +57,8 @@ static void traverse(Operation *op, DenseSet<Operation *> &res, Func f) {
   }
 }
 
-static void insertBuffer(Location loc, Value operand, OpBuilder &builder,
-                         unsigned numSlots, BufferTypeEnum bufferType) {
+static Value insertBuffer(Location loc, Value operand, OpBuilder &builder,
+                          unsigned numSlots, BufferTypeEnum bufferType) {
   auto ip = builder.saveInsertionPoint();
   builder.setInsertionPointAfterValue(operand);
   auto bufferOp = builder.create<handshake::BufferOp>(
@@ -68,6 +68,7 @@ static void insertBuffer(Location loc, Value operand, OpBuilder &builder,
         return !isa<handshake::BufferOp>(operand.getOwner());
       }));
   builder.restoreInsertionPoint(ip);
+  return bufferOp;
 }
 
 static LogicalResult findAllLoopElements(Operation *op,
@@ -127,19 +128,20 @@ static bool isUnbufferedChannel(Value &val) {
   return !isa_and_nonnull<BufferOp>(definingOp) && !isa<BufferOp>(usingOp);
 }
 
-static LogicalResult customRegionBuffer(Region &r) {
+static LogicalResult customRegionBuffer(Region &r, unsigned fifoBufferSize) {
   DenseSet<Value> cycleElements;
   if (failed(findCycleElements(r, cycleElements)))
     return failure();
 
   OpBuilder builder(r.getParentOp());
-  if (cycleElements.empty())
-    return bufferRegion(r, builder, "all", 1);
 
   for (auto &defOp : llvm::make_early_inc_range(r.getOps())) {
-    for (auto res : defOp.getResults()) {
+    for (Value res : defOp.getResults()) {
       if (cycleElements.contains(res) || !isUnbufferedChannel(res))
         continue;
+      if (fifoBufferSize > 0)
+        res = insertBuffer(res.getLoc(), res, builder, fifoBufferSize,
+                           BufferTypeEnum::fifo);
       insertBuffer(res.getLoc(), res, builder, 1, BufferTypeEnum::seq);
     }
   }
@@ -152,13 +154,14 @@ class CustomBufferInsertionPass
     : public circt_stream::impl::CustomBufferInsertionBase<
           CustomBufferInsertionPass> {
 public:
+  using CustomBufferInsertionBase::CustomBufferInsertionBase;
   void runOnOperation() override {
     // Assumption: only very small cycles and no memory operations
     auto f = getOperation();
     if (f.isExternal())
       return;
 
-    if (failed(customRegionBuffer(f.getBody())))
+    if (failed(customRegionBuffer(f.getBody(), fifoBufferSize)))
       signalPassFailure();
   }
 };
