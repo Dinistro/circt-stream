@@ -135,6 +135,14 @@ static LogicalResult customRegionBuffer(Region &r, unsigned fifoBufferSize) {
 
   OpBuilder builder(r.getParentOp());
 
+  // Insert buffers for block arguments as well.
+  for (Value arg : r.getArguments()) {
+    if (fifoBufferSize > 0)
+      arg = insertBuffer(arg.getLoc(), arg, builder, fifoBufferSize,
+                         BufferTypeEnum::fifo);
+    insertBuffer(arg.getLoc(), arg, builder, 1, BufferTypeEnum::seq);
+  }
+
   for (auto &defOp : llvm::make_early_inc_range(r.getOps())) {
     for (Value res : defOp.getResults()) {
       if (cycleElements.contains(res) || !isUnbufferedChannel(res))
