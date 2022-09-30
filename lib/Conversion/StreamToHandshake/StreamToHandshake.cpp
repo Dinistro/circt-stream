@@ -308,14 +308,15 @@ static LogicalResult getRegInfos(TOp op,
 /// A helper class to build registers. Tracks the state for building backedges
 /// correctly.
 class RegisterBuilder {
-  RegisterBuilder(ConversionPatternRewriter &rewriter)
-      : rewriter(rewriter), backBuilder(rewriter, rewriter.getUnknownLoc()) {}
+  RegisterBuilder(ConversionPatternRewriter &rewriter, Value eos, Location loc)
+      : rewriter(rewriter), backBuilder(rewriter, rewriter.getUnknownLoc()),
+        eos(eos), loc(loc) {}
 
 public:
   template <typename TOp>
   static FailureOr<RegisterBuilder> create(ConversionPatternRewriter &rewriter,
-                                           TOp op) {
-    RegisterBuilder regBuilder(rewriter);
+                                           TOp op, Value eos) {
+    RegisterBuilder regBuilder(rewriter, eos, op.getLoc());
     if (failed(getRegInfos(op, regBuilder.regInfos)))
       return failure();
 
@@ -325,13 +326,23 @@ public:
 private:
   // TODO initialValue type: handshake buffers do currently only support
   // integers
-  BufferOp buildRegister(Type type, int64_t initialValue, Value input) {
+  Value buildRegister(Type type, int64_t initialValue, Value input) {
+    auto source = rewriter.create<handshake::SourceOp>(loc);
+    auto initValConst = rewriter.create<handshake::ConstantOp>(
+        loc, rewriter.getIntegerAttr(type, initialValue), source);
+    auto buffInSel = rewriter.create<handshake::MuxOp>(
+        loc, eos, ValueRange({input, initValConst}));
+
     auto buffer = rewriter.create<handshake::BufferOp>(
-        rewriter.getUnknownLoc(), type, 1, input, BufferTypeEnum::seq);
+        rewriter.getUnknownLoc(), type, 1, buffInSel, BufferTypeEnum::seq);
     // This does return an unsigned integer but expects signed integers
     // TODO check if this is an MLIR bug
     buffer->setAttr("initValues", rewriter.getI64ArrayAttr({initialValue}));
-    return buffer;
+
+    // Only emit a result on eos == 0
+    auto dataBr =
+        rewriter.create<handshake::ConditionalBranchOp>(loc, eos, buffer);
+    return dataBr.getFalseResult();
   }
 
 public:
@@ -359,7 +370,37 @@ private:
   SmallVector<IntegerAttr> regInfos;
   BackedgeBuilder backBuilder;
   SmallVector<Backedge> backEdges;
+  Value eos;
+  Location loc;
 };
+
+static Value getDefaultVal(Location loc, Type type, Value trigger,
+                           ConversionPatternRewriter &rewriter) {
+  if (type.isa<NoneType>())
+    return trigger;
+
+  if (!type.isa<TupleType>())
+    return rewriter.create<ConstantOp>(loc, rewriter.getIntegerAttr(type, 0),
+                                       trigger);
+
+  auto tupleType = type.dyn_cast<TupleType>();
+  SmallVector<Value> packInputs;
+  for (auto elementType : tupleType.getTypes())
+    packInputs.push_back(getDefaultVal(loc, elementType, trigger, rewriter));
+
+  return rewriter.create<handshake::PackOp>(loc, packInputs);
+}
+
+static Value dataOrDefault(Location loc, Value data, Value eos,
+                           ConversionPatternRewriter &rewriter) {
+  // Only output the lambdas result when it will produce one. On EOS, the
+  // lambda is bypassed, so we select the input value.
+  auto source = rewriter.create<SourceOp>(loc);
+  return rewriter.create<MuxOp>(
+      loc, eos,
+      ValueRange({data, getDefaultVal(loc, data.getType(), source, rewriter)}));
+}
+
 // Builds a handshake::FuncOp and that represents the mapping funtion. This
 // function is then instantiated and connected to its inputs and outputs.
 struct MapOpLowering : public StreamOpLowering<MapOp> {
@@ -389,18 +430,24 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
     Value data = unpack.getResult(0);
     Value eos = unpack.getResult(1);
 
+    // Only feed data into circuit on eos == 0
+    auto dataBr =
+        rewriter.create<handshake::ConditionalBranchOp>(loc, eos, data);
+    auto streamCtrlBr =
+        rewriter.create<handshake::ConditionalBranchOp>(loc, eos, streamCtrl);
+
     Block *lambda = &op.getRegion().front();
     SmallVector<Value> lambdaIns;
-    lambdaIns.push_back(data);
+    lambdaIns.push_back(dataBr.getFalseResult());
 
-    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    auto regBuilder = RegisterBuilder::create(rewriter, op, eos);
     if (failed(regBuilder))
       return failure();
 
     regBuilder->buildRegisters(lambdaIns);
 
     // Ctrl is at the end, due to a handshake limitation
-    lambdaIns.push_back(streamCtrl);
+    lambdaIns.push_back(streamCtrlBr.getFalseResult());
 
     rewriter.setInsertionPointToStart(entryBlock);
     rewriter.mergeBlocks(lambda, entryBlock, lambdaIns);
@@ -409,12 +456,18 @@ struct MapOpLowering : public StreamOpLowering<MapOp> {
 
     regBuilder->bindRegInputs(llvm::drop_begin(oldTerm->getOperands(), 1));
 
+    // Only output the lambdas result when it will produce one. On EOS, the
+    // lambda is bypassed, so we select the input value.
+    auto outData = dataOrDefault(loc, oldTerm->getOperand(0), eos, rewriter);
+
     rewriter.setInsertionPoint(oldTerm);
     auto tupleOut = rewriter.create<handshake::PackOp>(
-        oldTerm->getLoc(), ValueRange({oldTerm->getOperand(0), eos}));
+        oldTerm->getLoc(), ValueRange({outData, eos}));
 
-    SmallVector<Value> newTermOperands = {tupleOut,
-                                          oldTerm->getOperands().back()};
+    auto outCtrl =
+        dataOrDefault(loc, oldTerm->getOperands().back(), eos, rewriter);
+
+    SmallVector<Value> newTermOperands = {tupleOut, outCtrl};
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
         oldTerm, newTermOperands);
 
@@ -460,18 +513,24 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
     Value data = unpack.getResult(0);
     Value eos = unpack.getResult(1);
 
+    // Only feed data into circuit on eos == 0
+    auto inDataBr =
+        rewriter.create<handshake::ConditionalBranchOp>(loc, eos, data);
+    auto streamCtrlBr =
+        rewriter.create<handshake::ConditionalBranchOp>(loc, eos, streamCtrl);
+
     Block *lambda = &op.getRegion().front();
     SmallVector<Value> lambdaIns;
-    lambdaIns.push_back(data);
+    lambdaIns.push_back(inDataBr.getFalseResult());
 
-    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    auto regBuilder = RegisterBuilder::create(rewriter, op, eos);
     if (failed(regBuilder))
       return failure();
 
     regBuilder->buildRegisters(lambdaIns);
 
     // Ctrl is at the end, due to a handshake limitation
-    lambdaIns.push_back(streamCtrl);
+    lambdaIns.push_back(streamCtrlBr.getFalseResult());
     rewriter.mergeBlocks(lambda, entryBlock, lambdaIns);
 
     Operation *oldTerm = entryBlock->getTerminator();
@@ -482,19 +541,20 @@ struct FilterOpLowering : public StreamOpLowering<FilterOp> {
     rewriter.setInsertionPointToEnd(entryBlock);
 
     Value cond = oldTerm->getOperand(0);
-    Value ctrl = oldTerm->getOperands().back();
 
-    auto tupleOut =
-        rewriter.create<handshake::PackOp>(loc, ValueRange({data, eos}));
-
-    auto condOrEos = rewriter.create<arith::OrIOp>(loc, cond, eos);
+    // Drop eos on the path to "shouldEmit" if it will not be consumed
+    auto eosBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), eos, eos);
+    // Need a mux here, as the input cond will not be fired on EOS == 1
+    auto shouldEmit = rewriter.create<MuxOp>(
+        loc, eos, ValueRange({cond, eosBr.getTrueResult()}));
 
     auto dataBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), condOrEos, tupleOut);
+        rewriter.getUnknownLoc(), shouldEmit, tupleIn);
 
     // Makes sure we only emit Ctrl when data is produced
     auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
-        rewriter.getUnknownLoc(), condOrEos, ctrl);
+        rewriter.getUnknownLoc(), shouldEmit, streamCtrl);
 
     SmallVector<Value> newTermOperands = {dataBr.getTrueResult(),
                                           ctrlBr.getTrueResult()};
@@ -533,6 +593,7 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     if (failed(
             typeConverter->convertType(op.getResult().getType(), resultTypes)))
       return failure();
+    BackedgeBuilder backBuilder(rewriter, loc);
 
     assert(resultTypes[0].isa<TupleType>());
     Type resultType = resultTypes[0].dyn_cast<TupleType>().getType(0);
@@ -562,9 +623,21 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     Block *lambda = &op.getRegion().front();
 
     Operation *oldTerm = lambda->getTerminator();
+
+    // Buffer which functions as a register
+    // Select the the init value to be feed in the buffer when EOS was asserted
+    // to corretly reinitialize the register.
+    auto source = rewriter.create<handshake::SourceOp>(loc);
+    auto initValConst = rewriter.create<handshake::ConstantOp>(
+        loc, rewriter.getIntegerAttr(resultType, adaptor.getInitValue()),
+        source);
+    auto buffInSel = rewriter.create<handshake::MuxOp>(
+        loc, eos, ValueRange({oldTerm->getOperand(0), initValConst}));
     auto buffer = rewriter.create<handshake::BufferOp>(
-        rewriter.getUnknownLoc(), resultType, 1, oldTerm->getOperand(0),
+        rewriter.getUnknownLoc(), resultType, 1,
+        buffInSel, // oldTerm->getOperand(0),
         BufferTypeEnum::seq);
+
     // This does return an unsigned integer but expects signed integers
     // TODO check if this is an MLIR bug
     buffer->setAttr("initValues", rewriter.getI64ArrayAttr(
@@ -577,9 +650,13 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     auto ctrlBr = rewriter.create<handshake::ConditionalBranchOp>(
         rewriter.getUnknownLoc(), eos, oldTerm->getOperands().back());
 
-    SmallVector<Value> lambdaIns = {dataBr.getFalseResult(), data};
+    // Only feed data in circuit when eos is not asserted
+    auto inDataBr = rewriter.create<handshake::ConditionalBranchOp>(
+        rewriter.getUnknownLoc(), eos, data);
+    SmallVector<Value> lambdaIns = {dataBr.getFalseResult(),
+                                    inDataBr.getFalseResult()};
 
-    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    auto regBuilder = RegisterBuilder::create(rewriter, op, eos);
     if (failed(regBuilder))
       return failure();
 
@@ -605,15 +682,15 @@ struct ReduceOpLowering : public StreamOpLowering<ReduceOp> {
     auto tupleOutEOS = rewriter.create<handshake::PackOp>(
         loc, ValueRange({dataBr.getTrueResult(), eosBr.getTrueResult()}));
 
-    // Not really needed, but the BufferOp builder requires an input
-    auto bubble = rewriter.create<ConstantOp>(
-        loc, rewriter.getIntegerAttr(rewriter.getI1Type(), 0),
-        ctrlBr.getTrueResult());
+    // The buffer must cycle to itself, such that it can be reused again.
+    auto bufferCycle = backBuilder.get(rewriter.getI1Type());
     auto select = rewriter.create<handshake::BufferOp>(
-        rewriter.getUnknownLoc(), rewriter.getI1Type(), 2, bubble,
+        rewriter.getUnknownLoc(), rewriter.getI1Type(), 2, bufferCycle,
         BufferTypeEnum::seq);
     // First select the tupleOut, afterwards the one with the EOS signal
     select->setAttr("initValues", rewriter.getI64ArrayAttr({1, 0}));
+
+    bufferCycle.setValue(select);
 
     auto tupleOut = rewriter.create<MuxOp>(
         loc, select, ValueRange({tupleOutVal, tupleOutEOS}));
@@ -691,16 +768,22 @@ struct SplitOpLowering : public StreamOpLowering<SplitOp> {
     Value data = unpack.getResult(0);
     Value eos = unpack.getResult(1);
 
-    Block *lambda = &op.getRegion().front();
-    SmallVector<Value> lambdaIns = {data};
+    // Only feed data into circuit on eos == 0
+    auto dataBr =
+        rewriter.create<handshake::ConditionalBranchOp>(loc, eos, data);
+    auto streamCtrlBr =
+        rewriter.create<handshake::ConditionalBranchOp>(loc, eos, streamCtrl);
 
-    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    Block *lambda = &op.getRegion().front();
+    SmallVector<Value> lambdaIns = {dataBr.getFalseResult()};
+
+    auto regBuilder = RegisterBuilder::create(rewriter, op, eos);
     if (failed(regBuilder))
       return failure();
 
     regBuilder->buildRegisters(lambdaIns);
 
-    lambdaIns.push_back(streamCtrl);
+    lambdaIns.push_back(streamCtrlBr.getFalseResult());
     rewriter.mergeBlocks(lambda, entryBlock, lambdaIns);
 
     Operation *oldTerm = entryBlock->getTerminator();
@@ -714,11 +797,17 @@ struct SplitOpLowering : public StreamOpLowering<SplitOp> {
     rewriter.setInsertionPoint(oldTerm);
 
     SmallVector<Value> newTermOperands;
+
+    auto outCtrl =
+        dataOrDefault(loc, oldTerm->getOperands().back(), eos, rewriter);
     for (auto oldOp : llvm::drop_end(oldTerm->getOperands(), numRegs + 1)) {
-      auto pack = rewriter.create<handshake::PackOp>(oldTerm->getLoc(),
-                                                     ValueRange({oldOp, eos}));
+      // Only output the lambdas result when it will produce one. On EOS, the
+      // lambda is bypassed, so we select the input value.
+      auto outData = dataOrDefault(loc, oldOp, eos, rewriter);
+      auto pack = rewriter.create<handshake::PackOp>(
+          oldTerm->getLoc(), ValueRange({outData, eos}));
       newTermOperands.push_back(pack.getResult());
-      newTermOperands.push_back(oldTerm->getOperands().back());
+      newTermOperands.push_back(outCtrl);
     }
 
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
@@ -773,7 +862,7 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
     Block *entryBlock =
         rewriter.createBlock(&r, r.begin(), inputTypes, argLocs);
 
-    SmallVector<Value> blockInputs;
+    SmallVector<Value> dataInputs;
     SmallVector<Value> eosInputs;
     SmallVector<Value> ctrlInputs;
     for (unsigned i = 0, e = entryBlock->getNumArguments() - 1; i < e; i += 2) {
@@ -783,13 +872,23 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
       Value data = unpack.getResult(0);
       Value eos = unpack.getResult(1);
 
-      blockInputs.push_back(data);
+      dataInputs.push_back(data);
       ctrlInputs.push_back(streamCtrl);
       eosInputs.push_back(eos);
     }
     Block *lambda = &op.getRegion().front();
 
-    auto regBuilder = RegisterBuilder::create(rewriter, op);
+    // TODO What to do when not all streams provide an eos signal
+    Value eos = buildReduceTree<arith::OrIOp>(eosInputs, loc, rewriter);
+
+    // Only feed data into circuit on eos == 0
+    SmallVector<Value> blockInputs;
+    for (auto data : dataInputs)
+      blockInputs.push_back(
+          rewriter.create<handshake::ConditionalBranchOp>(loc, eos, data)
+              .getFalseResult());
+
+    auto regBuilder = RegisterBuilder::create(rewriter, op, eos);
     if (failed(regBuilder))
       return failure();
 
@@ -797,7 +896,9 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
 
     // only execute region when ALL inputs are ready
     auto ctrlJoin = rewriter.create<JoinOp>(loc, ctrlInputs);
-    blockInputs.push_back(ctrlJoin);
+    auto ctrlJoinBr =
+        rewriter.create<handshake::ConditionalBranchOp>(loc, eos, ctrlJoin);
+    blockInputs.push_back(ctrlJoinBr.getFalseResult());
 
     rewriter.mergeBlocks(lambda, entryBlock, blockInputs);
 
@@ -810,15 +911,15 @@ struct CombineOpLowering : public StreamOpLowering<CombineOp> {
         llvm::drop_begin(oldTerm->getOperands(), numOuts));
     rewriter.setInsertionPoint(oldTerm);
 
-    // TODO What to do when not all streams provide an eos signal
-    Value eos = buildReduceTree<arith::OrIOp>(eosInputs, loc, rewriter);
-
     SmallVector<Value> newTermOperands;
+    auto outCtrl =
+        dataOrDefault(loc, oldTerm->getOperands().back(), eos, rewriter);
     for (auto oldOp : oldTerm->getOperands().drop_back()) {
-      auto pack = rewriter.create<handshake::PackOp>(oldTerm->getLoc(),
-                                                     ValueRange({oldOp, eos}));
+      auto outData = dataOrDefault(loc, oldOp, eos, rewriter);
+      auto pack = rewriter.create<handshake::PackOp>(
+          oldTerm->getLoc(), ValueRange({outData, eos}));
       newTermOperands.push_back(pack.getResult());
-      newTermOperands.push_back(oldTerm->getOperands().back());
+      newTermOperands.push_back(outCtrl);
     }
 
     auto newTerm = rewriter.replaceOpWithNewOp<handshake::ReturnOp>(
