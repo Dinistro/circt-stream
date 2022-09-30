@@ -3,59 +3,91 @@
 // CHECK-LABEL:   handshake.func private @stream_reduce(
 // CHECK-SAME:                                          %[[VAL_0:.*]]: tuple<i64, i1>,
 // CHECK-SAME:                                          %[[VAL_1:.*]]: none, ...) -> (tuple<i64, i1>, none)
-// CHECK:           %[[VAL_2:.*]]:2 = unpack %[[VAL_0]] : tuple<i64, i1>
-// CHECK:           %[[VAL_3:.*]] = buffer [1] seq %[[VAL_2]]#1 : i1
-// CHECK:           %[[VAL_4:.*]] = buffer [1] seq %[[VAL_2]]#0 : i64
-// CHECK:           %[[VAL_5:.*]]:4 = fork [4] %[[VAL_3]] : i1
-// CHECK:           %[[VAL_6:.*]] = buffer [1] seq %[[VAL_5]]#3 : i1
-// CHECK:           %[[VAL_7:.*]] = buffer [1] seq %[[VAL_5]]#2 : i1
-// CHECK:           %[[VAL_8:.*]] = buffer [1] seq %[[VAL_5]]#1 : i1
-// CHECK:           %[[VAL_9:.*]] = buffer [1] seq %[[VAL_5]]#0 : i1
-// CHECK:           %[[VAL_10:.*]] = buffer [1] seq %[[VAL_11:.*]] {initValues = [0]} : i64
-// CHECK:           %[[VAL_12:.*]], %[[VAL_13:.*]] = cond_br %[[VAL_6]], %[[VAL_10]] : i64
-// CHECK:           %[[VAL_14:.*]] = buffer [1] seq %[[VAL_12]] : i64
-// CHECK:           %[[VAL_15:.*]]:2 = fork [2] %[[VAL_14]] : i64
-// CHECK:           %[[VAL_16:.*]] = buffer [1] seq %[[VAL_15]]#1 : i64
-// CHECK:           %[[VAL_17:.*]] = buffer [1] seq %[[VAL_15]]#0 : i64
-// CHECK:           %[[VAL_18:.*]], %[[VAL_19:.*]] = cond_br %[[VAL_8]], %[[VAL_7]] : i1
-// CHECK:           %[[VAL_20:.*]] = buffer [1] seq %[[VAL_19]] : i1
-// CHECK:           %[[VAL_21:.*]] = buffer [1] seq %[[VAL_18]] : i1
-// CHECK:           sink %[[VAL_20]] : i1
-// CHECK:           %[[VAL_22:.*]], %[[VAL_23:.*]] = cond_br %[[VAL_9]], %[[VAL_1]] : none
-// CHECK:           %[[VAL_24:.*]] = buffer [1] seq %[[VAL_23]] : none
-// CHECK:           %[[VAL_25:.*]] = buffer [1] seq %[[VAL_22]] : none
-// CHECK:           sink %[[VAL_24]] : none
-// CHECK:           %[[VAL_26:.*]]:3 = fork [3] %[[VAL_25]] : none
-// CHECK:           %[[VAL_27:.*]] = buffer [1] seq %[[VAL_26]]#2 : none
-// CHECK:           %[[VAL_28:.*]] = buffer [1] seq %[[VAL_26]]#1 : none
-// CHECK:           %[[VAL_29:.*]] = buffer [1] seq %[[VAL_26]]#0 : none
-// CHECK:           %[[VAL_30:.*]]:2 = fork [2] %[[VAL_13]] : i64
-// CHECK:           %[[VAL_31:.*]]:2 = fork [2] %[[VAL_4]] : i64
-// CHECK:           %[[VAL_32:.*]] = buffer [1] seq %[[VAL_31]]#1 : i64
-// CHECK:           %[[VAL_33:.*]] = buffer [1] seq %[[VAL_31]]#0 : i64
-// CHECK:           %[[VAL_34:.*]] = arith.cmpi slt, %[[VAL_30]]#0, %[[VAL_33]] : i64
-// CHECK:           %[[VAL_11]] = select %[[VAL_34]], %[[VAL_32]], %[[VAL_30]]#1 : i64
-// CHECK:           %[[VAL_35:.*]] = constant %[[VAL_27]] {value = false} : i1
+// CHECK:           %[[VAL_2:.*]] = buffer [10] fifo %[[VAL_1]] : none
+// CHECK:           %[[VAL_3:.*]] = buffer [1] seq %[[VAL_2]] : none
+// CHECK:           %[[VAL_4:.*]] = buffer [10] fifo %[[VAL_0]] : tuple<i64, i1>
+// CHECK:           %[[VAL_5:.*]] = buffer [1] seq %[[VAL_4]] : tuple<i64, i1>
+// CHECK:           %[[VAL_6:.*]]:2 = unpack %[[VAL_5]] : tuple<i64, i1>
+// CHECK:           %[[VAL_7:.*]] = buffer [10] fifo %[[VAL_6]]#1 : i1
+// CHECK:           %[[VAL_8:.*]] = buffer [1] seq %[[VAL_7]] : i1
+// CHECK:           %[[VAL_9:.*]] = buffer [10] fifo %[[VAL_6]]#0 : i64
+// CHECK:           %[[VAL_10:.*]] = buffer [1] seq %[[VAL_9]] : i64
+// CHECK:           %[[VAL_11:.*]]:4 = fork [4] %[[VAL_8]] : i1
+// CHECK:           %[[VAL_12:.*]] = buffer [10] fifo %[[VAL_11]]#3 : i1
+// CHECK:           %[[VAL_13:.*]] = buffer [1] seq %[[VAL_12]] : i1
+// CHECK:           %[[VAL_14:.*]] = buffer [10] fifo %[[VAL_11]]#2 : i1
+// CHECK:           %[[VAL_15:.*]] = buffer [1] seq %[[VAL_14]] : i1
+// CHECK:           %[[VAL_16:.*]] = buffer [10] fifo %[[VAL_11]]#1 : i1
+// CHECK:           %[[VAL_17:.*]] = buffer [1] seq %[[VAL_16]] : i1
+// CHECK:           %[[VAL_18:.*]] = buffer [10] fifo %[[VAL_11]]#0 : i1
+// CHECK:           %[[VAL_19:.*]] = buffer [1] seq %[[VAL_18]] : i1
+// CHECK:           %[[VAL_20:.*]] = buffer [1] seq %[[VAL_21:.*]] {initValues = [0]} : i64
+// CHECK:           %[[VAL_22:.*]], %[[VAL_23:.*]] = cond_br %[[VAL_13]], %[[VAL_20]] : i64
+// CHECK:           %[[VAL_24:.*]] = buffer [10] fifo %[[VAL_22]] : i64
+// CHECK:           %[[VAL_25:.*]] = buffer [1] seq %[[VAL_24]] : i64
+// CHECK:           %[[VAL_26:.*]]:2 = fork [2] %[[VAL_25]] : i64
+// CHECK:           %[[VAL_27:.*]] = buffer [10] fifo %[[VAL_26]]#1 : i64
+// CHECK:           %[[VAL_28:.*]] = buffer [1] seq %[[VAL_27]] : i64
+// CHECK:           %[[VAL_29:.*]] = buffer [10] fifo %[[VAL_26]]#0 : i64
+// CHECK:           %[[VAL_30:.*]] = buffer [1] seq %[[VAL_29]] : i64
+// CHECK:           %[[VAL_31:.*]], %[[VAL_32:.*]] = cond_br %[[VAL_17]], %[[VAL_15]] : i1
+// CHECK:           %[[VAL_33:.*]] = buffer [10] fifo %[[VAL_32]] : i1
+// CHECK:           %[[VAL_34:.*]] = buffer [1] seq %[[VAL_33]] : i1
+// CHECK:           %[[VAL_35:.*]] = buffer [10] fifo %[[VAL_31]] : i1
 // CHECK:           %[[VAL_36:.*]] = buffer [1] seq %[[VAL_35]] : i1
-// CHECK:           %[[VAL_37:.*]] = pack %[[VAL_16]], %[[VAL_36]] : tuple<i64, i1>
-// CHECK:           %[[VAL_38:.*]] = buffer [1] seq %[[VAL_37]] : tuple<i64, i1>
-// CHECK:           %[[VAL_39:.*]] = pack %[[VAL_17]], %[[VAL_21]] : tuple<i64, i1>
-// CHECK:           %[[VAL_40:.*]] = buffer [1] seq %[[VAL_39]] : tuple<i64, i1>
-// CHECK:           %[[VAL_41:.*]]:2 = fork [2] %[[VAL_40]] : tuple<i64, i1>
-// CHECK:           %[[VAL_42:.*]] = buffer [1] seq %[[VAL_41]]#1 : tuple<i64, i1>
-// CHECK:           %[[VAL_43:.*]] = buffer [1] seq %[[VAL_41]]#0 : tuple<i64, i1>
-// CHECK:           %[[VAL_44:.*]] = constant %[[VAL_28]] {value = false} : i1
-// CHECK:           %[[VAL_45:.*]] = buffer [2] seq %[[VAL_44]] {initValues = [1, 0]} : i1
-// CHECK:           %[[VAL_46:.*]]:2 = fork [2] %[[VAL_45]] : i1
-// CHECK:           %[[VAL_47:.*]] = buffer [1] seq %[[VAL_46]]#1 : i1
-// CHECK:           %[[VAL_48:.*]] = buffer [1] seq %[[VAL_46]]#0 : i1
-// CHECK:           %[[VAL_49:.*]] = mux %[[VAL_47]] {{\[}}%[[VAL_38]], %[[VAL_42]]] : i1, tuple<i64, i1>
-// CHECK:           %[[VAL_50:.*]] = buffer [1] seq %[[VAL_49]] : tuple<i64, i1>
-// CHECK:           %[[VAL_51:.*]] = join %[[VAL_43]] : tuple<i64, i1>
-// CHECK:           %[[VAL_52:.*]] = buffer [1] seq %[[VAL_51]] : none
-// CHECK:           %[[VAL_53:.*]] = mux %[[VAL_48]] {{\[}}%[[VAL_29]], %[[VAL_52]]] : i1, none
-// CHECK:           %[[VAL_54:.*]] = buffer [1] seq %[[VAL_53]] : none
-// CHECK:           return %[[VAL_50]], %[[VAL_54]] : tuple<i64, i1>, none
+// CHECK:           sink %[[VAL_34]] : i1
+// CHECK:           %[[VAL_37:.*]], %[[VAL_38:.*]] = cond_br %[[VAL_19]], %[[VAL_3]] : none
+// CHECK:           %[[VAL_39:.*]] = buffer [10] fifo %[[VAL_38]] : none
+// CHECK:           %[[VAL_40:.*]] = buffer [1] seq %[[VAL_39]] : none
+// CHECK:           %[[VAL_41:.*]] = buffer [10] fifo %[[VAL_37]] : none
+// CHECK:           %[[VAL_42:.*]] = buffer [1] seq %[[VAL_41]] : none
+// CHECK:           sink %[[VAL_40]] : none
+// CHECK:           %[[VAL_43:.*]]:3 = fork [3] %[[VAL_42]] : none
+// CHECK:           %[[VAL_44:.*]] = buffer [10] fifo %[[VAL_43]]#2 : none
+// CHECK:           %[[VAL_45:.*]] = buffer [1] seq %[[VAL_44]] : none
+// CHECK:           %[[VAL_46:.*]] = buffer [10] fifo %[[VAL_43]]#1 : none
+// CHECK:           %[[VAL_47:.*]] = buffer [1] seq %[[VAL_46]] : none
+// CHECK:           %[[VAL_48:.*]] = buffer [10] fifo %[[VAL_43]]#0 : none
+// CHECK:           %[[VAL_49:.*]] = buffer [1] seq %[[VAL_48]] : none
+// CHECK:           %[[VAL_50:.*]]:2 = fork [2] %[[VAL_23]] : i64
+// CHECK:           %[[VAL_51:.*]]:2 = fork [2] %[[VAL_10]] : i64
+// CHECK:           %[[VAL_52:.*]] = buffer [10] fifo %[[VAL_51]]#1 : i64
+// CHECK:           %[[VAL_53:.*]] = buffer [1] seq %[[VAL_52]] : i64
+// CHECK:           %[[VAL_54:.*]] = buffer [10] fifo %[[VAL_51]]#0 : i64
+// CHECK:           %[[VAL_55:.*]] = buffer [1] seq %[[VAL_54]] : i64
+// CHECK:           %[[VAL_56:.*]] = arith.cmpi slt, %[[VAL_50]]#0, %[[VAL_55]] : i64
+// CHECK:           %[[VAL_21]] = select %[[VAL_56]], %[[VAL_53]], %[[VAL_50]]#1 : i64
+// CHECK:           %[[VAL_57:.*]] = constant %[[VAL_45]] {value = false} : i1
+// CHECK:           %[[VAL_58:.*]] = buffer [10] fifo %[[VAL_57]] : i1
+// CHECK:           %[[VAL_59:.*]] = buffer [1] seq %[[VAL_58]] : i1
+// CHECK:           %[[VAL_60:.*]] = pack %[[VAL_28]], %[[VAL_59]] : tuple<i64, i1>
+// CHECK:           %[[VAL_61:.*]] = buffer [10] fifo %[[VAL_60]] : tuple<i64, i1>
+// CHECK:           %[[VAL_62:.*]] = buffer [1] seq %[[VAL_61]] : tuple<i64, i1>
+// CHECK:           %[[VAL_63:.*]] = pack %[[VAL_30]], %[[VAL_36]] : tuple<i64, i1>
+// CHECK:           %[[VAL_64:.*]] = buffer [10] fifo %[[VAL_63]] : tuple<i64, i1>
+// CHECK:           %[[VAL_65:.*]] = buffer [1] seq %[[VAL_64]] : tuple<i64, i1>
+// CHECK:           %[[VAL_66:.*]]:2 = fork [2] %[[VAL_65]] : tuple<i64, i1>
+// CHECK:           %[[VAL_67:.*]] = buffer [10] fifo %[[VAL_66]]#1 : tuple<i64, i1>
+// CHECK:           %[[VAL_68:.*]] = buffer [1] seq %[[VAL_67]] : tuple<i64, i1>
+// CHECK:           %[[VAL_69:.*]] = buffer [10] fifo %[[VAL_66]]#0 : tuple<i64, i1>
+// CHECK:           %[[VAL_70:.*]] = buffer [1] seq %[[VAL_69]] : tuple<i64, i1>
+// CHECK:           %[[VAL_71:.*]] = constant %[[VAL_47]] {value = false} : i1
+// CHECK:           %[[VAL_72:.*]] = buffer [2] seq %[[VAL_71]] {initValues = [1, 0]} : i1
+// CHECK:           %[[VAL_73:.*]]:2 = fork [2] %[[VAL_72]] : i1
+// CHECK:           %[[VAL_74:.*]] = buffer [10] fifo %[[VAL_73]]#1 : i1
+// CHECK:           %[[VAL_75:.*]] = buffer [1] seq %[[VAL_74]] : i1
+// CHECK:           %[[VAL_76:.*]] = buffer [10] fifo %[[VAL_73]]#0 : i1
+// CHECK:           %[[VAL_77:.*]] = buffer [1] seq %[[VAL_76]] : i1
+// CHECK:           %[[VAL_78:.*]] = mux %[[VAL_75]] {{\[}}%[[VAL_62]], %[[VAL_68]]] : i1, tuple<i64, i1>
+// CHECK:           %[[VAL_79:.*]] = buffer [10] fifo %[[VAL_78]] : tuple<i64, i1>
+// CHECK:           %[[VAL_80:.*]] = buffer [1] seq %[[VAL_79]] : tuple<i64, i1>
+// CHECK:           %[[VAL_81:.*]] = join %[[VAL_70]] : tuple<i64, i1>
+// CHECK:           %[[VAL_82:.*]] = buffer [10] fifo %[[VAL_81]] : none
+// CHECK:           %[[VAL_83:.*]] = buffer [1] seq %[[VAL_82]] : none
+// CHECK:           %[[VAL_84:.*]] = mux %[[VAL_77]] {{\[}}%[[VAL_49]], %[[VAL_83]]] : i1, none
+// CHECK:           %[[VAL_85:.*]] = buffer [10] fifo %[[VAL_84]] : none
+// CHECK:           %[[VAL_86:.*]] = buffer [1] seq %[[VAL_85]] : none
+// CHECK:           return %[[VAL_80]], %[[VAL_86]] : tuple<i64, i1>, none
 // CHECK:         }
 
 handshake.func private @stream_reduce(%arg0: tuple<i64, i1>, %arg1: none, ...) -> (tuple<i64, i1>, none) {
