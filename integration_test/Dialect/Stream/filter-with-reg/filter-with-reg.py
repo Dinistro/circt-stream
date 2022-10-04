@@ -6,8 +6,8 @@ from helper import initDut, Stream
 async def ascendingInputs(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
 
   out0Check = cocotb.start_soon(out0.checkOutputs([1,0,0]))
 
@@ -19,8 +19,8 @@ async def ascendingInputs(dut):
 async def multipleEOS(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
 
   for _ in range(5):
     out0Check = cocotb.start_soon(out0.checkOutputs([1,0,0]))

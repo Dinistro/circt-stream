@@ -6,9 +6,8 @@ module {
     return
   }
 
-  // CHECK:      handshake.func @sink(%{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...)
+  // CHECK:      handshake.func @sink(%{{.*}}: tuple<i32, i1>, ...)
   // CHECK-NEXT:   sink %{{.*}} : tuple<i32, i1>
-  // CHECK-NEXT:   sink %{{.*}} : none
   // CHECK-NEXT:   return
   // CHECK-NEXT: }
 }

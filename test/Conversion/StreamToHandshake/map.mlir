@@ -11,32 +11,27 @@ func.func @map(%in: !stream.stream<i32>) -> !stream.stream<i32> {
 }
 
 // CHECK-LABEL:   handshake.func private @stream_map(
-// CHECK-SAME:                                       %[[VAL_0:.*]]: tuple<i32, i1>,
-// CHECK-SAME:                                       %[[VAL_1:.*]]: none, ...) -> (tuple<i32, i1>, none)
-// CHECK:           %[[VAL_2:.*]] = source
-// CHECK:           %[[VAL_3:.*]] = constant %[[VAL_2]] {value = 0 : i32} : i32
-// CHECK:           %[[VAL_4:.*]] = mux %[[VAL_5:.*]]#2 {{\[}}%[[VAL_6:.*]], %[[VAL_3]]] : i1, i32
-// CHECK:           %[[VAL_7:.*]]:2 = unpack %[[VAL_0]] : tuple<i32, i1>
-// CHECK:           %[[VAL_5]]:5 = fork [5] %[[VAL_7]]#1 : i1
-// CHECK:           %[[VAL_8:.*]], %[[VAL_9:.*]] = cond_br %[[VAL_5]]#4, %[[VAL_7]]#0 : i32
-// CHECK:           sink %[[VAL_8]] : i32
-// CHECK:           %[[VAL_10:.*]], %[[VAL_11:.*]] = cond_br %[[VAL_5]]#3, %[[VAL_1]] : none
-// CHECK:           sink %[[VAL_10]] : none
-// CHECK:           %[[VAL_12:.*]]:2 = fork [2] %[[VAL_11]] : none
-// CHECK:           %[[VAL_13:.*]] = merge %[[VAL_9]] : i32
-// CHECK:           %[[VAL_14:.*]] = constant %[[VAL_12]]#0 {value = 1 : i32} : i32
-// CHECK:           %[[VAL_6]] = arith.addi %[[VAL_14]], %[[VAL_13]] : i32
-// CHECK:           %[[VAL_15:.*]] = pack %[[VAL_4]], %[[VAL_5]]#1 : tuple<i32, i1>
-// CHECK:           %[[VAL_16:.*]] = source
-// CHECK:           %[[VAL_17:.*]] = mux %[[VAL_5]]#0 {{\[}}%[[VAL_12]]#1, %[[VAL_16]]] : i1, none
-// CHECK:           return %[[VAL_15]], %[[VAL_17]] : tuple<i32, i1>, none
+// CHECK-SAME:                                       %[[VAL_0:.*]]: tuple<i32, i1>, ...) -> tuple<i32, i1>
+// CHECK:           %[[VAL_1:.*]] = source
+// CHECK:           %[[VAL_2:.*]] = constant %[[VAL_1]] {value = 0 : i32} : i32
+// CHECK:           %[[VAL_3:.*]] = mux %[[VAL_4:.*]]#1 {{\[}}%[[VAL_5:.*]], %[[VAL_2]]] : i1, i32
+// CHECK:           %[[VAL_6:.*]]:2 = unpack %[[VAL_0]] : tuple<i32, i1>
+// CHECK:           %[[VAL_4]]:3 = fork [3] %[[VAL_6]]#1 : i1
+// CHECK:           %[[VAL_7:.*]], %[[VAL_8:.*]] = cond_br %[[VAL_4]]#2, %[[VAL_6]]#0 : i32
+// CHECK:           sink %[[VAL_7]] : i32
+// CHECK:           %[[VAL_9:.*]]:2 = fork [2] %[[VAL_8]] : i32
+// CHECK:           %[[VAL_10:.*]] = join %[[VAL_9]]#1 : i32
+// CHECK:           %[[VAL_11:.*]] = merge %[[VAL_9]]#0 : i32
+// CHECK:           %[[VAL_12:.*]] = constant %[[VAL_10]] {value = 1 : i32} : i32
+// CHECK:           %[[VAL_5]] = arith.addi %[[VAL_12]], %[[VAL_11]] : i32
+// CHECK:           %[[VAL_13:.*]] = pack %[[VAL_3]], %[[VAL_4]]#0 : tuple<i32, i1>
+// CHECK:           return %[[VAL_13]] : tuple<i32, i1>
 // CHECK:         }
 
 // CHECK-LABEL:   handshake.func @map(
-// CHECK-SAME:                        %[[VAL_0:.*]]: tuple<i32, i1>,
-// CHECK-SAME:                        %[[VAL_1:.*]]: none, ...) -> (tuple<i32, i1>, none)
-// CHECK:           %[[VAL_2:.*]]:2 = instance @stream_map(%[[VAL_0]], %[[VAL_1]]) : (tuple<i32, i1>, none) -> (tuple<i32, i1>, none)
-// CHECK:           return %[[VAL_2]]#0, %[[VAL_2]]#1 : tuple<i32, i1>, none
+// CHECK-SAME:                        %[[VAL_0:.*]]: tuple<i32, i1>, ...) -> tuple<i32, i1>
+// CHECK:           %[[VAL_1:.*]] = instance @stream_map(%[[VAL_0]]) : (tuple<i32, i1>) -> tuple<i32, i1>
+// CHECK:           return %[[VAL_1]] : tuple<i32, i1>
 // CHECK:         }
 
 // -----
@@ -57,5 +52,5 @@ func.func @map_multi_block(%in: !stream.stream<i32>) -> !stream.stream<i32> {
   return %res : !stream.stream<i32>
 }
 
-// CHECK:  handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none)
-// CHECK:   handshake.func @map_multi_block(%{{.*}}: tuple<i32, i1>, %{{.*}}: none, ...) -> (tuple<i32, i1>, none)
+// CHECK:  handshake.func private @[[LABEL:.*]](%{{.*}}: tuple<i32, i1>, ...) -> tuple<i32, i1>
+// CHECK:   handshake.func @map_multi_block(%{{.*}}: tuple<i32, i1>, ...) -> tuple<i32, i1>
