@@ -6,8 +6,8 @@ import random
 async def initStreams(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
   return in0, out0
 
 @cocotb.test()

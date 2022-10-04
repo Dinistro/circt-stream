@@ -7,8 +7,8 @@ import random
 async def single(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
 
   out0Check = cocotb.start_soon(out0.checkOutputs([(3, 11)]))
 
@@ -29,8 +29,8 @@ def getOutpus(inputs):
 async def multiple(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
 
   N = 100
   inputs = [randomTuple() for _ in range(N)]
@@ -45,8 +45,8 @@ async def multiple(dut):
 async def multipleEOS(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
 
   for _ in range(3):
     N = 10

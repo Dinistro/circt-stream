@@ -300,15 +300,12 @@ class Stream:
   Class that encapsulates all the handshake ports for a stream
   """
 
-  def __init__(self, dataPort, ctrlPort):
+  def __init__(self, dataPort):
     self.dataPort = dataPort
-    self.ctrlPort = ctrlPort
 
   async def sendData(self, data):
     ds = cocotb.start_soon(self.dataPort.send((data, 0)))
-    cs = cocotb.start_soon(self.ctrlPort.send())
     await ds
-    await cs
 
   def _buildSentinel(self, fields):
     if not isinstance(fields, list):
@@ -318,9 +315,7 @@ class Stream:
   async def sendEOS(self):
     data = cocotb.start_soon(
         self.dataPort.send((self._buildSentinel(self.dataPort.fields[0]), 1)))
-    ctrl = cocotb.start_soon(self.ctrlPort.send())
     await data
-    await ctrl
 
   async def sendAndTerminate(self, data):
     for d in data:
@@ -331,9 +326,6 @@ class Stream:
   async def checkOutputs(self, results):
     resWithEOS = [(d, 0) for d in results]
     data = cocotb.start_soon(self.dataPort.checkOutputs(resWithEOS))
-    ctrl = cocotb.start_soon(self.ctrlPort.awaitNOutputs(len(resWithEOS) + 1))
     await data
     [(_, eos)] = await cocotb.start_soon(self.dataPort.collectNOutputs(1))
     assert eos == 1
-
-    await ctrl

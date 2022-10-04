@@ -7,9 +7,9 @@ import random
 async def sendOne(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
-  out1 = Stream(outs[2], outs[3])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
+  out1 = Stream(outs[1])
 
   inputs = [(10, 2, 3, 6, 5, 1, 5, 9)]
   outputs = [max([max(list(i)) for i in inputs])]
@@ -31,9 +31,9 @@ def randomTuple():
 async def sendMultiple(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
-  out1 = Stream(outs[2], outs[3])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
+  out1 = Stream(outs[1])
 
   N = 100
   inputs = [randomTuple() for _ in range(N)]
@@ -52,9 +52,9 @@ async def sendMultiple(dut):
 async def sendMultipleWithEOS(dut):
   ins, outs = await initDut(dut)
 
-  in0 = Stream(ins[0], ins[1])
-  out0 = Stream(outs[0], outs[1])
-  out1 = Stream(outs[2], outs[3])
+  in0 = Stream(ins[0])
+  out0 = Stream(outs[0])
+  out1 = Stream(outs[1])
 
   for _ in range(5):
     N = 100
