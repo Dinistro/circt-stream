@@ -21,7 +21,7 @@
 #include "circt/Dialect/Handshake/HandshakeOps.h"
 #include "circt/Support/BackedgeBuilder.h"
 #include "circt/Support/SymCache.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
@@ -1075,7 +1075,7 @@ public:
     target.addLegalOp<ModuleOp>();
     target.addLegalOp<UnrealizedConversionCastOp>();
     target.addLegalDialect<handshake::HandshakeDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
     target.addIllegalDialect<func::FuncDialect>();
     target.addIllegalDialect<StreamDialect>();
 
