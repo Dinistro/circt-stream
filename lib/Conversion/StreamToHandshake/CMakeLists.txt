@@ -13,5 +13,6 @@ add_mlir_library(CIRCTStreamStreamToHandshake
   MLIRFuncDialect
 
   CIRCTHandshake
+  CIRCTStreamStream
   )
 
