@@ -1,3 +1,4 @@
 [submodule "circt"]
 	path = circt
-	url = git@github.com:llvm/circt.git
+	url = https://github.com/llvm/circt.git
+    branch = main
