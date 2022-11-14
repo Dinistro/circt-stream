@@ -111,7 +111,7 @@ def ReduceOp : Stream_Op<"reduce", []> {
 }
 
 def UnpackOp : Stream_Op<"unpack", [
-      NoSideEffect,
+      Pure,
       TypesMatchWith<"result types match element types of 'tuple'",
                      "input", "results",
                      "$_self.cast<TupleType>().getTypes()">]> {
@@ -137,7 +137,7 @@ def UnpackOp : Stream_Op<"unpack", [
 }
 
 def PackOp : Stream_Op<"pack", [
-  NoSideEffect,
+  Pure,
   TypesMatchWith<"input types match element types of 'tuple'",
                    "result", "inputs",
                    "$_self.cast<TupleType>().getTypes()">
@@ -162,7 +162,7 @@ def PackOp : Stream_Op<"pack", [
 }
 
 def YieldOp : Stream_Op<"yield", [
-    NoSideEffect, ReturnLike, Terminator,
+    ReturnLike, Terminator,
     ParentOneOf<["MapOp, FilterOp, ReduceOp, SplitOp, CombineOp"]>
 ]> {
   let summary = "stream yield and termination operation";
@@ -236,7 +236,7 @@ def CombineOp : Stream_Op<"combine", []> {
 }
 
 def SinkOp : Stream_Op<"sink", [
-  NoSideEffect
+  Pure
 ]> {
   let summary = "consumes elements of the input stream";
   let description = [{
