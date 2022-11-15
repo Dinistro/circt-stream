@@ -24,7 +24,7 @@ func.func @map_wrong_arg_cnt(%in: !stream.stream<i32>) -> (!stream.stream<i32>) 
 
 // -----
 
-func.func @filter_wrong_yield_type(%in: !stream.stream<i32>) -> (!stream.stream<i32>, !stream.stream<i32>) {
+func.func @filter_wrong_yield_type(%in: !stream.stream<i32>) -> !stream.stream<i32> {
   %res = stream.filter(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
     ^0(%val : i32):
     // expected-error @+1 {{expect the operand #0 to have type 'i1', got 'i32' instead.}}
@@ -129,3 +129,16 @@ func.func @combine_wrong_input_types(%in0: !stream.stream<i32>, %in1: !stream.st
     return %res : !stream.stream<tuple<i32, i32>>
   }
 
+// -----
+
+func.func @map_not_isolated(%in: !stream.stream<i32>) -> (!stream.stream<i32>) {
+  %c = arith.constant 42 : i32
+  // expected-note @+1 {{required by region isolation constrain}}
+  %res = stream.map(%in) : (!stream.stream<i32>) -> !stream.stream<i32> {
+  ^bb0(%val : i32):
+    // expected-error @+1 {{op using value defined outside the region}}
+    %out = arith.addi %val, %c : i32
+    stream.yield %out : i32
+  }
+  return %res : !stream.stream<i32>
+}

@@ -19,7 +19,7 @@ include "mlir/IR/BuiltinTypes.td"
 // TODO Refine this to ensure that each element holds data and a type
 def RegisterAttr : OptionalAttr<ArrayAttr>;
 
-def MapOp : Stream_Op<"map", []> {
+def MapOp : Stream_Op<"map", [IsolatedFromAbove]> {
   let summary = "applies the region on each element";
   let description = [{
     `stream.map` applies the provided region on each element of the input
@@ -48,7 +48,7 @@ def MapOp : Stream_Op<"map", []> {
   let hasRegionVerifier = 1;
 }
 
-def FilterOp : Stream_Op<"filter", []> {
+def FilterOp : Stream_Op<"filter", [IsolatedFromAbove]> {
   let summary = "filters a stream with the provided predicate";
   let description = [{
     `stream.filter` applies the provided region on each element of the input
@@ -78,7 +78,7 @@ def FilterOp : Stream_Op<"filter", []> {
   let hasRegionVerifier = 1;
 }
 
-def ReduceOp : Stream_Op<"reduce", []> {
+def ReduceOp : Stream_Op<"reduce", [IsolatedFromAbove]> {
   let summary = "reduces the stream with the provided region";
   let description = [{
     `stream.reduce` folds the stream to a single value by applying the provided
@@ -179,7 +179,7 @@ def YieldOp : Stream_Op<"yield", [
     [{  attr-dict ($results^ `:` type($results))? }];
 }
 
-def SplitOp : Stream_Op<"split", []> {
+def SplitOp : Stream_Op<"split", [IsolatedFromAbove]> {
   let summary = "for each input produces outputs for each output stream.";
   let description = [{
     `stream.split` takes one input stream and produces multiple output streams.
@@ -207,7 +207,7 @@ def SplitOp : Stream_Op<"split", []> {
   let hasRegionVerifier = 1;
 }
 
-def CombineOp : Stream_Op<"combine", []> {
+def CombineOp : Stream_Op<"combine", [IsolatedFromAbove]> {
   let summary = "combines elements from all incomming stream to one output element";
   let description = [{
     `stream.combine` takes a variable number of input stream and produces one output stream.
